@@ -8,4 +8,8 @@ build/
 .eggs/
 *.egg
 .vscode/
+.idea/
 *.db
+.claude/
+.env
+.env.*
