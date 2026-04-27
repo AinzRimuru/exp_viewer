@@ -115,9 +115,23 @@ def scan_directory(root: Path) -> "list[Experiment]":
     # Phase 3: normalize each experiment using combined overrides + inferred types
     combined_overrides = {**inferred_types, **type_overrides}
 
+    # Collect union of all field keys across experiments for padding
+    all_hp_keys = sorted({
+        k for _, raw in raw_experiments for k in raw.get("hyperparameters", {})
+    })
+    all_res_keys = sorted({
+        k for _, raw in raw_experiments for k in raw.get("results", {})
+    })
+
     experiments: list[Experiment] = []
     for dir_name, raw in raw_experiments:
-        exp = normalize_experiment(raw, default_id=dir_name, type_overrides=combined_overrides)
+        exp = normalize_experiment(
+            raw,
+            default_id=dir_name,
+            type_overrides=combined_overrides,
+            all_hp_keys=all_hp_keys,
+            all_res_keys=all_res_keys,
+        )
         experiments.append(exp)
 
     return experiments

@@ -155,6 +155,10 @@ def _render_cell(fv: FieldValue | None) -> str:
     """Render a single table cell."""
     if fv is None:
         return '<span class="missing">—</span>'
+    if fv.value is None:
+        return '<span class="missing">—</span>'
+    if isinstance(fv.value, float) and fv.value != fv.value:  # NaN check
+        return '<span class="nan">NaN</span>'
     if fv.field_type == FieldType.BOOLEAN:
         cls = "bool-true" if fv.value else "bool-false"
         return f'<span class="{cls}">{fv.display_value}</span>'

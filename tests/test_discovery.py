@@ -86,6 +86,43 @@ class TestScanDirectory:
         for exp in experiments:
             assert exp.hyperparameters["lr"].field_type == FieldType.STRING
 
+    def test_scan_missing_field_padded_with_none(self, tmp_path):
+        """Experiments missing a field get it padded with None."""
+        # exp_a has dropout, exp_b doesn't
+        (tmp_path / "exp_a").mkdir()
+        (tmp_path / "exp_a" / "config.json").write_text('{"lr": 0.01, "dropout": 0.3}')
+        (tmp_path / "exp_a" / "results.json").write_text('{"loss": 0.5}')
+        (tmp_path / "exp_b").mkdir()
+        (tmp_path / "exp_b" / "config.json").write_text('{"lr": 0.001}')
+        (tmp_path / "exp_b" / "results.json").write_text('{"loss": 0.3}')
+
+        experiments = scan_directory(tmp_path)
+        exp_a = next(e for e in experiments if e.id == "exp_a")
+        exp_b = next(e for e in experiments if e.id == "exp_b")
+
+        # exp_b should have dropout with None value
+        assert "dropout" in exp_b.hyperparameters
+        assert exp_b.hyperparameters["dropout"].value is None
+        # exp_a should have dropout with actual value
+        assert exp_a.hyperparameters["dropout"].value == 0.3
+
+    def test_scan_type_mismatch_becomes_nan(self, tmp_path):
+        """Value incompatible with field's resolved type becomes NaN."""
+        import math
+        # exp_a: accuracy is numeric (0.95 -> PERCENTAGE by name)
+        (tmp_path / "exp_a").mkdir()
+        (tmp_path / "exp_a" / "config.json").write_text('{"lr": 0.01}')
+        (tmp_path / "exp_a" / "results.json").write_text('{"accuracy": 0.95}')
+        # exp_b: accuracy is a string (breaks the PERCENTAGE type)
+        (tmp_path / "exp_b").mkdir()
+        (tmp_path / "exp_b" / "config.json").write_text('{"lr": 0.001}')
+        (tmp_path / "exp_b" / "results.json").write_text('{"accuracy": "N/A"}')
+
+        experiments = scan_directory(tmp_path)
+        # accuracy field type should widen to STRING
+        for exp in experiments:
+            assert exp.results["accuracy"].field_type == FieldType.STRING
+
     def test_scan_nonexistent(self):
         import pytest
         with pytest.raises(ValueError, match="Not a directory"):

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable
@@ -41,6 +42,8 @@ class FieldValue:
     @property
     def numeric_value(self) -> float | None:
         """Return a float representation for numeric-like types, None for strings."""
+        if isinstance(self.value, float) and math.isnan(self.value):
+            return float("nan")
         if self.field_type == FieldType.STRING:
             return None
         if self.field_type == FieldType.BOOLEAN:
@@ -53,6 +56,8 @@ class FieldValue:
     @property
     def display_value(self) -> str:
         """Human-readable string for display."""
+        if isinstance(self.value, float) and math.isnan(self.value):
+            return "NaN"
         if self.field_type == FieldType.PERCENTAGE:
             v = float(self.value)
             if v <= 1.0:
@@ -72,6 +77,8 @@ class FieldValue:
     @property
     def sort_value(self) -> Any:
         """Value suitable for sorting: numeric for numbers, string for others."""
+        if isinstance(self.value, float) and math.isnan(self.value):
+            return (1, float("inf"))  # NaN sorts last
         if self.field_type in (FieldType.NUMERIC, FieldType.PERCENTAGE):
             return float(self.value)
         if self.field_type == FieldType.BOOLEAN:

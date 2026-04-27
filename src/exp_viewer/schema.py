@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any
 
@@ -94,36 +95,74 @@ def infer_type_from_values(values: list[Any], field_name: str = "") -> FieldType
     return FieldType.narrowest_common(*inferred)
 
 
+def _value_matches_type(value: Any, ft: FieldType) -> bool:
+    """Check if a raw value is compatible with the expected FieldType."""
+    if isinstance(value, float) and math.isnan(value):
+        return True  # NaN is always acceptable
+    if ft == FieldType.STRING:
+        return True  # STRING accepts everything
+    if ft == FieldType.BOOLEAN:
+        return isinstance(value, bool)
+    if ft in (FieldType.NUMERIC, FieldType.PERCENTAGE):
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    return True
+
+
 def normalize_fields(
-    raw: dict[str, Any], *, prefix: str = "", type_overrides: dict[str, str] | None = None
+    raw: dict[str, Any], *, prefix: str = "",
+    type_overrides: dict[str, str] | None = None,
+    all_keys: list[str] | None = None,
 ) -> dict[str, FieldValue]:
     """Convert a raw dict into {key: FieldValue}.
 
-    Accepts shorthand (bare values) format. Types are determined by:
+    Types are determined by:
     1. Explicit type_overrides from fields.json
     2. Inference from value type and field name hints
+
+    Args:
+        raw: Raw field dict from JSON.
+        prefix: Unused, kept for compatibility.
+        type_overrides: Field name -> type string overrides.
+        all_keys: If provided, pad missing keys with None-valued FieldValues.
     """
     overrides = type_overrides or {}
     result: dict[str, FieldValue] = {}
+
     for key, raw_val in raw.items():
         ft = _resolve_type(raw_val, key, overrides)
-        result[key] = FieldValue(value=raw_val, field_type=ft)
+        # Type mismatch: value doesn't fit the declared/inferred type -> NaN
+        if not _value_matches_type(raw_val, ft):
+            result[key] = FieldValue(value=float("nan"), field_type=ft)
+        else:
+            result[key] = FieldValue(value=raw_val, field_type=ft)
+
+    # Pad missing keys with None-valued FieldValues
+    if all_keys:
+        for key in all_keys:
+            if key not in result:
+                ft = _resolve_type(None, key, overrides) if key in overrides else None
+                if ft is None:
+                    # Infer from key name hints; default to STRING
+                    ft = infer_type(None, key) if key else FieldType.STRING
+                result[key] = FieldValue(value=None, field_type=ft)
+
     return result
 
 
 def normalize_experiment(
     raw: dict[str, Any], *, default_id: str = "",
     type_overrides: dict[str, str] | None = None,
+    all_hp_keys: list[str] | None = None,
+    all_res_keys: list[str] | None = None,
 ) -> Experiment:
     """Normalize a raw experiment dict into an Experiment.
 
-    Expected top-level keys:
-    - id (optional, falls back to default_id)
-    - name (optional, falls back to id)
-    - created_at (optional)
-    - tags (optional list)
-    - hyperparameters (dict, required)
-    - results (dict, required)
+    Args:
+        raw: Raw experiment data.
+        default_id: Fallback ID if not in raw.
+        type_overrides: Field name -> type string overrides.
+        all_hp_keys: If provided, pad missing hyperparameters with None.
+        all_res_keys: If provided, pad missing results with None.
     """
     exp_id = raw.get("id", default_id)
     name = raw.get("name", exp_id)
@@ -136,8 +175,12 @@ def normalize_experiment(
     return Experiment(
         id=exp_id,
         name=name,
-        hyperparameters=normalize_fields(hp_raw, type_overrides=type_overrides),
-        results=normalize_fields(res_raw, type_overrides=type_overrides),
+        hyperparameters=normalize_fields(
+            hp_raw, type_overrides=type_overrides, all_keys=all_hp_keys
+        ),
+        results=normalize_fields(
+            res_raw, type_overrides=type_overrides, all_keys=all_res_keys
+        ),
         created_at=created_at,
         tags=list(tags),
     )

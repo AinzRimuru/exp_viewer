@@ -43,6 +43,7 @@ table.exp-table tbody tr:hover { background: #f1f3f5; }
 .bool-true { color: #16a34a; font-weight: 600; }
 .bool-false { color: #dc2626; }
 .missing { color: #adb5bd; }
+.nan { color: #d97706; font-style: italic; }
 </style>
 """
 

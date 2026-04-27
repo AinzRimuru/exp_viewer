@@ -105,6 +105,56 @@ class TestNormalizeFields:
         )
         assert fields["dropout"].field_type == FieldType.PERCENTAGE
 
+    def test_type_mismatch_becomes_nan(self):
+        """Value that doesn't match declared type is replaced with NaN."""
+        import math
+        fields = normalize_fields(
+            {"accuracy": "not_a_number"},
+            type_overrides={"accuracy": "percentage"},
+        )
+        assert fields["accuracy"].field_type == FieldType.PERCENTAGE
+        assert math.isnan(fields["accuracy"].value)
+
+    def test_bool_in_numeric_field_becomes_nan(self):
+        """Boolean in a NUMERIC field is replaced with NaN."""
+        import math
+        fields = normalize_fields(
+            {"loss": True},
+            type_overrides={"loss": "numeric"},
+        )
+        assert fields["loss"].field_type == FieldType.NUMERIC
+        assert math.isnan(fields["loss"].value)
+
+    def test_string_in_boolean_field_becomes_nan(self):
+        """String in a BOOLEAN field is replaced with NaN."""
+        import math
+        fields = normalize_fields(
+            {"converged": "yes"},
+            type_overrides={"converged": "boolean"},
+        )
+        assert fields["converged"].field_type == FieldType.BOOLEAN
+        assert math.isnan(fields["converged"].value)
+
+    def test_number_in_string_field_is_ok(self):
+        """Number in STRING field is allowed (widened)."""
+        fields = normalize_fields(
+            {"note": 42},
+            type_overrides={"note": "string"},
+        )
+        assert fields["note"].field_type == FieldType.STRING
+        assert fields["note"].value == 42
+
+    def test_missing_keys_padded_with_none(self):
+        """all_keys pads missing keys with None value."""
+        fields = normalize_fields(
+            {"lr": 0.01},
+            type_overrides={"lr": "numeric", "dropout": "percentage"},
+            all_keys=["lr", "dropout", "optimizer"],
+        )
+        assert fields["lr"].value == 0.01
+        assert fields["dropout"].value is None
+        assert fields["optimizer"].value is None
+
 
 class TestNormalizeExperiment:
     def test_shorthand_experiment(self):
