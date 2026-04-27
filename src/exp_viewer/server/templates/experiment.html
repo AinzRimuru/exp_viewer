@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Experiment {{ experiment.id }}{% endblock %}
+{% block content %}
+<h2>Experiment: {{ experiment.name }}</h2>
+<p class="stats">ID: {{ experiment.id }} | Created: {{ experiment.created_at }} | Tags: {{ experiment.tags | join(', ') }}</p>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+    <div>
+        <h3>Hyperparameters</h3>
+        <table class="exp-table">
+            {% for k, fv in experiment.hyperparameters.items() %}
+            <tr><th>{{ k }}</th><td>{{ fv.display_value }}</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+    <div>
+        <h3>Results</h3>
+        <table class="exp-table">
+            {% for k, fv in experiment.results.items() %}
+            <tr><th>{{ k }}</th><td>{{ fv.display_value }}</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% endblock %}

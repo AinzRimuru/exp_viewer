@@ -1,0 +1,5 @@
+{
+    "id": "exp_large_lr",
+    "name": "Large LR Experiment",
+    "tags": ["sweep", "high-lr"]
+}

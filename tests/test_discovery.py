@@ -1,0 +1,92 @@
+"""Tests for exp_viewer discovery module."""
+
+from pathlib import Path
+
+from exp_viewer.discovery import scan_directory, register_from_directory
+from exp_viewer.schema import load_fields_config
+from exp_viewer.types import FieldType
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+class TestRegisterFromDirectory:
+    def test_load_run1(self):
+        # register_from_directory without overrides uses name-based inference
+        exp = register_from_directory(FIXTURES / "exp_run1")
+        assert exp.id == "exp_run1"
+        assert "learning_rate" in exp.hyperparameters
+        assert "accuracy" in exp.results
+        assert exp.results["accuracy"].field_type == FieldType.PERCENTAGE
+        assert exp.hyperparameters["use_augmentation"].field_type == FieldType.BOOLEAN
+
+    def test_load_run1_with_overrides(self):
+        overrides = load_fields_config(FIXTURES)
+        exp = register_from_directory(FIXTURES / "exp_run1", type_overrides=overrides)
+        assert exp.results["accuracy"].field_type == FieldType.PERCENTAGE
+        assert exp.results["loss"].field_type == FieldType.NUMERIC
+        assert exp.results["converged"].field_type == FieldType.BOOLEAN
+
+    def test_load_run3_with_metadata(self):
+        exp = register_from_directory(FIXTURES / "exp_run3")
+        assert exp.id == "exp_large_lr"
+        assert exp.name == "Large LR Experiment"
+        assert "sweep" in exp.tags
+
+
+class TestScanDirectory:
+    def test_scan_all(self):
+        experiments = scan_directory(FIXTURES)
+        assert len(experiments) == 3
+        ids = {e.id for e in experiments}
+        assert "exp_run1" in ids
+        assert "exp_run2" in ids
+        assert "exp_large_lr" in ids
+
+    def test_scan_with_fields_json(self):
+        """scan_directory auto-loads fields.json and applies type overrides."""
+        experiments = scan_directory(FIXTURES)
+        exp1 = next(e for e in experiments if e.id == "exp_run1")
+        # fields.json specifies accuracy=percentage, loss=numeric, converged=boolean
+        assert exp1.results["accuracy"].field_type == FieldType.PERCENTAGE
+        assert exp1.results["loss"].field_type == FieldType.NUMERIC
+        assert exp1.results["converged"].field_type == FieldType.BOOLEAN
+
+    def test_scan_cross_experiment_type_widening(self, tmp_path):
+        """When same field has different types across experiments, use common type."""
+        # exp_a: lr is numeric (0.01)
+        (tmp_path / "exp_a").mkdir()
+        (tmp_path / "exp_a" / "config.json").write_text('{"lr": 0.01}')
+        (tmp_path / "exp_a" / "results.json").write_text('{"loss": 0.5}')
+        # exp_b: lr is string ("auto")
+        (tmp_path / "exp_b").mkdir()
+        (tmp_path / "exp_b" / "config.json").write_text('{"lr": "auto"}')
+        (tmp_path / "exp_b" / "results.json").write_text('{"loss": 0.3}')
+
+        experiments = scan_directory(tmp_path)
+        assert len(experiments) == 2
+        # lr: NUMERIC + STRING -> STRING (minimum common)
+        for exp in experiments:
+            assert exp.hyperparameters["lr"].field_type == FieldType.STRING
+        # loss: all NUMERIC -> stays NUMERIC
+        for exp in experiments:
+            assert exp.results["loss"].field_type == FieldType.NUMERIC
+
+    def test_scan_fields_json_overrides_inference(self, tmp_path):
+        """fields.json should override cross-experiment inference."""
+        (tmp_path / "exp_a").mkdir()
+        (tmp_path / "exp_a" / "config.json").write_text('{"lr": 0.01}')
+        (tmp_path / "exp_a" / "results.json").write_text('{"loss": 0.5}')
+        (tmp_path / "exp_b").mkdir()
+        (tmp_path / "exp_b" / "config.json").write_text('{"lr": "auto"}')
+        (tmp_path / "exp_b" / "results.json").write_text('{"loss": 0.3}')
+        # Force lr to be string via fields.json
+        (tmp_path / "fields.json").write_text('{"lr": "string"}')
+
+        experiments = scan_directory(tmp_path)
+        for exp in experiments:
+            assert exp.hyperparameters["lr"].field_type == FieldType.STRING
+
+    def test_scan_nonexistent(self):
+        import pytest
+        with pytest.raises(ValueError, match="Not a directory"):
+            scan_directory(Path("/nonexistent"))

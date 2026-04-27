@@ -1,0 +1,12 @@
+{
+    "learning_rate": "numeric",
+    "batch_size": "numeric",
+    "optimizer": "string",
+    "use_augmentation": "boolean",
+    "train_pct": "percentage",
+    "accuracy": "percentage",
+    "loss": "numeric",
+    "f1_score": "percentage",
+    "converged": "boolean",
+    "epochs": "numeric"
+}

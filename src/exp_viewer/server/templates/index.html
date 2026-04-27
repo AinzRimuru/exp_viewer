@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Experiment Viewer - Dashboard{% endblock %}
+{% block content %}
+<div class="stats">Total experiments: <strong>{{ experiment_count }}</strong></div>
+
+<div class="controls">
+    <label>Sort by:
+        <select id="sort-field">
+            <option value="">-- none --</option>
+            <optgroup label="Hyperparameters">
+                {% for k in fields.hyperparameters %}
+                <option value="{{ k }}">{{ k }}</option>
+                {% endfor %}
+            </optgroup>
+            <optgroup label="Results">
+                {% for k in fields.results %}
+                <option value="{{ k }}">{{ k }}</option>
+                {% endfor %}
+            </optgroup>
+        </select>
+    </label>
+    <label>Order:
+        <select id="sort-order">
+            <option value="asc">Ascending</option>
+            <option value="desc">Descending</option>
+        </select>
+    </label>
+    <label>Filter:
+        <input type="text" id="filter-input" placeholder="field:op:value (e.g. accuracy:gt:0.9)">
+    </label>
+    <button onclick="loadTable()">Apply</button>
+</div>
+
+<div class="tabs">
+    <div class="tab active" data-tab="tab-table" onclick="switchTab('tab-table')">Table</div>
+    <div class="tab" data-tab="tab-chart" onclick="switchTab('tab-chart')">Chart</div>
+</div>
+
+<div id="tab-table" class="tab-content active">
+    <div class="table-wrapper">
+        <div id="table-container">Loading...</div>
+    </div>
+</div>
+
+<div id="tab-chart" class="tab-content">
+    <div class="controls">
+        <label>Chart type:
+            <select id="chart-type">
+                <option value="bar">Bar</option>
+                <option value="scatter">Scatter</option>
+                <option value="line">Line</option>
+                <option value="parallel_coordinates">Parallel Coordinates</option>
+                <option value="heatmap">Heatmap</option>
+            </select>
+        </label>
+        <label>X:
+            <select id="chart-x">
+                <option value="id">id</option>
+                {% for k in fields.hyperparameters %}
+                <option value="{{ k }}">{{ k }}</option>
+                {% endfor %}
+                {% for k in fields.results %}
+                <option value="{{ k }}">{{ k }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>Y:
+            <select id="chart-y">
+                {% for k in fields.results %}
+                <option value="{{ k }}">{{ k }}</option>
+                {% endfor %}
+                {% for k in fields.hyperparameters %}
+                <option value="{{ k }}">{{ k }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>Color:
+            <select id="chart-color">
+                <option value="">-- none --</option>
+                {% for k in fields.results %}
+                <option value="{{ k }}">{{ k }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button onclick="loadChart()">Draw</button>
+    </div>
+    <div class="chart-container" id="chart-container"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+    document.querySelector('[data-tab="'+tabId+'"]').classList.add('active');
+}
+
+function loadTable() {
+    const params = new URLSearchParams();
+    const sortBy = document.getElementById('sort-field').value;
+    const sortOrder = document.getElementById('sort-order').value;
+    const filterInput = document.getElementById('filter-input').value.trim();
+
+    if (sortBy) params.set('sort_by', sortBy);
+    if (sortOrder === 'desc') params.set('sort_desc', 'true');
+
+    if (filterInput) {
+        // Parse "field:op:value" format
+        const parts = filterInput.split(':');
+        if (parts.length >= 3) {
+            params.set('filter_' + parts[0], parts.slice(1).join(':'));
+        }
+    }
+
+    fetch('/api/table?' + params.toString())
+        .then(r => r.text())
+        .then(html => {
+            document.getElementById('table-container').innerHTML = html;
+        });
+}
+
+function loadChart() {
+    const chartType = document.getElementById('chart-type').value;
+    const params = new URLSearchParams();
+    params.set('x', document.getElementById('chart-x').value);
+    params.set('y', document.getElementById('chart-y').value);
+    const color = document.getElementById('chart-color').value;
+    if (color) params.set('color', color);
+
+    fetch('/api/chart/' + chartType + '?' + params.toString())
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                document.getElementById('chart-container').innerHTML = '<p>Error: ' + data.error + '</p>';
+                return;
+            }
+            Plotly.newPlot('chart-container', data, {responsive: true});
+        });
+}
+
+// Load table on page load
+loadTable();
+</script>
+{% endblock %}

@@ -1,0 +1,7 @@
+{
+    "accuracy": 0.88,
+    "loss": 0.102,
+    "f1_score": 0.86,
+    "converged": false,
+    "epochs": 50
+}

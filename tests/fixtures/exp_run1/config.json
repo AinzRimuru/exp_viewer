@@ -1,0 +1,8 @@
+{
+    "learning_rate": 0.001,
+    "batch_size": 32,
+    "optimizer": "adam",
+    "use_augmentation": true,
+    "train_pct": 0.8,
+    "dropout_rate": 0.3
+}
