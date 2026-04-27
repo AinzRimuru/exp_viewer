@@ -29,6 +29,33 @@
         <input type="text" id="filter-input" placeholder="field:op:value (e.g. accuracy:gt:0.9)">
     </label>
     <button onclick="loadTable()">Apply</button>
+    <button type="button" onclick="toggleColumnPicker()" class="btn-cols">Columns</button>
+</div>
+
+<div id="column-picker" style="display:none;">
+    <div class="column-picker-inner">
+        <div class="column-picker-actions">
+            <button onclick="selectAllCols(true)">All</button>
+            <button onclick="selectAllCols(false)">None</button>
+            <button onclick="toggleGroup('hp-group')">Toggle HP</button>
+            <button onclick="toggleGroup('res-group')">Toggle Results</button>
+        </div>
+        <div class="column-picker-groups">
+            <div>
+                <strong>Hyperparameters</strong>
+                {% for k in fields.hyperparameters %}
+                <label><input type="checkbox" class="col-check hp-group" value="{{ k }}" checked> {{ k }}</label>
+                {% endfor %}
+            </div>
+            <div>
+                <strong>Results</strong>
+                {% for k in fields.results %}
+                <label><input type="checkbox" class="col-check res-group" value="{{ k }}" checked> {{ k }}</label>
+                {% endfor %}
+            </div>
+        </div>
+        <button onclick="loadTable()">Apply Columns</button>
+    </div>
 </div>
 
 <div class="tabs">
@@ -114,11 +141,37 @@ function loadTable() {
         }
     }
 
+    // Collect selected columns
+    const checked = document.querySelectorAll('.col-check:checked');
+    if (checked.length > 0) {
+        const cols = Array.from(checked).map(cb => cb.value);
+        const allChecks = document.querySelectorAll('.col-check');
+        // Only send columns param if not all are selected
+        if (checked.length < allChecks.length) {
+            params.set('columns', cols.join(','));
+        }
+    }
+
     fetch('/api/table?' + params.toString())
         .then(r => r.text())
         .then(html => {
             document.getElementById('table-container').innerHTML = html;
         });
+}
+
+function toggleColumnPicker() {
+    const picker = document.getElementById('column-picker');
+    picker.style.display = picker.style.display === 'none' ? 'block' : 'none';
+}
+
+function selectAllCols(checked) {
+    document.querySelectorAll('.col-check').forEach(cb => cb.checked = checked);
+}
+
+function toggleGroup(cls) {
+    const boxes = document.querySelectorAll('.' + cls);
+    const allChecked = Array.from(boxes).every(cb => cb.checked);
+    boxes.forEach(cb => cb.checked = !allChecked);
 }
 
 function loadChart() {
