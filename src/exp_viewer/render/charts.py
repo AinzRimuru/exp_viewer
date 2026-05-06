@@ -100,13 +100,17 @@ def bar_chart(
     if color_field:
         color_vals, _ = _resolve_field(experiment_set, color_field)
         groups = sorted(set(str(v) for v in color_vals if v is not None))
+        # Build lookup: (x, color) -> y  (last value wins if duplicate)
+        lookup: dict[tuple[str, str], Any] = {}
+        for xv, yv, cv in zip(x_plot, y_vals, color_vals):
+            if cv is not None:
+                lookup[(str(xv), str(cv))] = yv
+        all_x = sorted(set(str(v) for v in x_plot))
         for g in groups:
-            gx, gy = [], []
-            for xv, yv, cv in zip(x_plot, y_vals, color_vals):
-                if str(cv) == g:
-                    gx.append(xv)
-                    gy.append(yv)
-            fig.add_trace(go.Bar(x=gx, y=gy, name=g, textposition="auto"))
+            gy = [lookup.get((xv, g)) for xv in all_x]
+            text = [f"{v:.4f}" if isinstance(v, float) else str(v) if v is not None else ""
+                    for v in gy]
+            fig.add_trace(go.Bar(x=all_x, y=gy, name=g, text=text, textposition="auto"))
         barmode = "stack" if group_mode == "stacked" else "group"
     else:
         fig.add_trace(
@@ -126,7 +130,9 @@ def bar_chart(
     )
     if barmode:
         layout_kwargs["barmode"] = barmode
-    if x_axis:
+        # Ensure all x categories appear even if a color group has no data for some
+        layout_kwargs.setdefault("xaxis", {})["type"] = "category"
+    if x_axis and "xaxis" not in layout_kwargs:
         layout_kwargs["xaxis"] = x_axis
     fig.update_layout(**layout_kwargs)
     return fig
