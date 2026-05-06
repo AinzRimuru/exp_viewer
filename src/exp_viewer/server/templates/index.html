@@ -374,7 +374,7 @@ function loadChart() {
                 document.getElementById('chart-container').innerHTML = '<p>Error: ' + data.error + '</p>';
                 return;
             }
-            Plotly.newPlot('chart-container', data, {responsive: true});
+            Plotly.newPlot('chart-container', data.data, Object.assign({}, data.layout, {responsive: true}));
         });
 }
 
