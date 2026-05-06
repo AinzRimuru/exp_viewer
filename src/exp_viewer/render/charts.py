@@ -608,3 +608,24 @@ CHART_BUILDERS = {
     "area": area_chart,
     "funnel": funnel_chart,
 }
+
+
+def _apply_legend_config(
+    fig: go.Figure,
+    legend_sort: str = "default",
+    legend_rename: dict[str, str] | None = None,
+) -> go.Figure:
+    """Apply legend sorting and renaming to a figure's traces."""
+    if legend_rename:
+        for trace in fig.data:
+            if hasattr(trace, "name") and trace.name in legend_rename:
+                trace.name = legend_rename[trace.name]
+
+    if legend_sort in ("alpha", "alpha_rev"):
+        reverse = legend_sort == "alpha_rev"
+        named = [t for t in fig.data if getattr(t, "name", None)]
+        unnamed = [t for t in fig.data if not getattr(t, "name", None)]
+        named.sort(key=lambda t: t.name, reverse=reverse)
+        fig.data = named + unnamed
+
+    return fig

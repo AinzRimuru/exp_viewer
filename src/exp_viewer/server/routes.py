@@ -9,7 +9,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from ..render.charts import CHART_BUILDERS
+from ..render.charts import CHART_BUILDERS, _apply_legend_config
 from ..render.export import comparison_html, export_html
 from ..render.table import build_table_html, parse_filter_params
 from ..schema import extract_type_overrides, extract_visibility, load_fields_config
@@ -170,6 +170,9 @@ async def get_chart(
     group_mode: str = Query("grouped"),
     nbins: int = Query(20),
     title: str = Query(""),
+    experiment_ids: str | None = Query(None),
+    legend_sort: str = Query("default"),
+    legend_rename: str | None = Query(None),
 ):
     """Return a Plotly chart as JSON."""
     builder = CHART_BUILDERS.get(chart_type)
@@ -181,6 +184,11 @@ async def get_chart(
 
     db = _get_db(request)
     exp_set = db.load_all()
+
+    # Filter by selected experiment IDs
+    if experiment_ids:
+        selected = set(experiment_ids.split(","))
+        exp_set = exp_set.filter(lambda e: e.id in selected)
 
     try:
         if chart_type == "bar":
@@ -234,6 +242,16 @@ async def get_chart(
                           labels_field=x or None, title=title)
         else:
             fig = builder(exp_set, title=title)
+
+        # Apply legend sort and rename
+        legend_rename_map = None
+        if legend_rename:
+            import json as _json
+            try:
+                legend_rename_map = _json.loads(legend_rename)
+            except (_json.JSONDecodeError, TypeError):
+                pass
+        fig = _apply_legend_config(fig, legend_sort=legend_sort, legend_rename=legend_rename_map)
 
         return JSONResponse(fig.to_dict())
     except Exception as e:

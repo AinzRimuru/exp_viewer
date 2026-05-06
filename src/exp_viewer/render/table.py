@@ -114,6 +114,7 @@ def build_table_html(
     # Header
     has_projects = any(exp.project for exp in experiment_set)
     rows.append("<thead><tr>")
+    rows.append('<th class="col-select" rowspan="2"><input type="checkbox" id="select-all" title="Select all"></th>')
     rows.append("<th class=\"col-id\">ID</th>")
     rows.append("<th class=\"col-name\">Name</th>")
     if has_projects:
@@ -123,6 +124,7 @@ def build_table_html(
     if res_display:
         rows.append(f'<th colspan="{len(res_display)}" class="group-res">Results</th>')
     rows.append("</tr><tr>")
+    rows.append('<th class="col-select"></th>')
     rows.append('<th class="col-id" data-sort="id">ID</th>')
     rows.append('<th class="col-name" data-sort="name">Name</th>')
     if has_projects:
@@ -141,7 +143,8 @@ def build_table_html(
     # Body
     rows.append("<tbody>")
     for exp in experiment_set:
-        rows.append("<tr>")
+        rows.append(f'<tr data-id="{escape(exp.id)}">')
+        rows.append(f'<td class="col-select"><input type="checkbox" class="exp-check" value="{escape(exp.id)}"></td>')
         rows.append(f'<td class="col-id"><a href="/experiments/{escape(exp.id)}">{escape(exp.id)}</a></td>')
         rows.append(f'<td class="col-name">{escape(exp.name)}</td>')
         if has_projects:

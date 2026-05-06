@@ -5,6 +5,7 @@ from pathlib import Path
 from exp_viewer.discovery import scan_directory
 from exp_viewer.render.charts import (
     CHART_BUILDERS,
+    _apply_legend_config,
     area_chart,
     bar_chart,
     box_plot,
@@ -76,6 +77,14 @@ class TestTable:
         es = ExperimentSet(exps)
         html = build_table_html(es)
         assert "col-project" not in html
+
+    def test_table_has_checkboxes(self):
+        """Table has select-all checkbox and per-row checkboxes with data-id."""
+        es = ExperimentSet(_load_fixtures())
+        html = build_table_html(es)
+        assert 'id="select-all"' in html
+        assert "exp-check" in html
+        assert 'data-id="exp_run1"' in html
 
 
 class TestCharts:
@@ -180,6 +189,33 @@ class TestCharts:
                     "box", "violin", "scatter_3d", "pie", "histogram",
                     "contour", "radar", "area", "funnel"}
         assert set(CHART_BUILDERS.keys()) == expected
+
+    def test_apply_legend_config_rename(self):
+        import plotly.graph_objects as go
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=[1], y=[2], name="old_name"))
+        fig.add_trace(go.Bar(x=[1], y=[3], name="keep"))
+        fig = _apply_legend_config(fig, legend_rename={"old_name": "new_name"})
+        assert fig.data[0].name == "new_name"
+        assert fig.data[1].name == "keep"
+
+    def test_apply_legend_config_sort_alpha(self):
+        import plotly.graph_objects as go
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=[1], y=[2], name="charlie"))
+        fig.add_trace(go.Bar(x=[1], y=[3], name="alpha"))
+        fig.add_trace(go.Bar(x=[1], y=[4], name="bravo"))
+        fig = _apply_legend_config(fig, legend_sort="alpha")
+        assert [t.name for t in fig.data] == ["alpha", "bravo", "charlie"]
+
+    def test_apply_legend_config_sort_reverse(self):
+        import plotly.graph_objects as go
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=[1], y=[2], name="alpha"))
+        fig.add_trace(go.Bar(x=[1], y=[3], name="charlie"))
+        fig.add_trace(go.Bar(x=[1], y=[4], name="bravo"))
+        fig = _apply_legend_config(fig, legend_sort="alpha_rev")
+        assert [t.name for t in fig.data] == ["charlie", "bravo", "alpha"]
 
 
 class TestExport:

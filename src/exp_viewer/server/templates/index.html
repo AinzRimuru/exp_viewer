@@ -179,6 +179,23 @@
             </label>
         </span>
         <button onclick="loadChart()">Draw</button>
+        <span id="ctrl-legend">
+            <label>Legend:
+                <select id="chart-legend-sort">
+                    <option value="default">Default</option>
+                    <option value="alpha">A → Z</option>
+                    <option value="alpha_rev">Z → A</option>
+                </select>
+            </label>
+            <button type="button" onclick="toggleLegendRename()" class="btn-rename">Rename</button>
+        </span>
+        <span id="selected-count" class="selected-count"></span>
+    </div>
+    <div id="legend-rename-panel" style="display:none;">
+        <div class="legend-rename-inner">
+            <div id="legend-rename-list"></div>
+            <button onclick="applyLegendRename()">Apply</button>
+        </div>
     </div>
     <div class="chart-container" id="chart-container"></div>
 </div>
@@ -326,6 +343,30 @@ function loadChart() {
         if (color) params.set('size', color);
     }
 
+    // Selected experiment IDs
+    const selectedIds = getSelectedExperimentIds();
+    if (selectedIds.length > 0) {
+        params.set('experiment_ids', selectedIds.join(','));
+    }
+
+    // Legend sort
+    const legendSort = document.getElementById('chart-legend-sort').value;
+    if (legendSort !== 'default') {
+        params.set('legend_sort', legendSort);
+    }
+
+    // Legend rename
+    const renameInputs = document.querySelectorAll('.legend-rename-input');
+    const renames = {};
+    renameInputs.forEach(input => {
+        if (input.defaultValue !== input.value) {
+            renames[input.defaultValue] = input.value;
+        }
+    });
+    if (Object.keys(renames).length > 0) {
+        params.set('legend_rename', JSON.stringify(renames));
+    }
+
     fetch('/api/chart/' + chartType + '?' + params.toString())
         .then(r => r.json())
         .then(data => {
@@ -340,5 +381,56 @@ function loadChart() {
 // Initialize
 updateChartControls();
 loadTable();
+
+function getSelectedExperimentIds() {
+    const checked = document.querySelectorAll('.exp-check:checked');
+    if (checked.length === 0) return [];
+    return Array.from(checked).map(cb => cb.value);
+}
+
+function updateSelectedCount() {
+    const count = getSelectedExperimentIds().length;
+    const el = document.getElementById('selected-count');
+    if (el) el.textContent = count > 0 ? count + ' selected' : '';
+}
+
+function toggleLegendRename() {
+    const panel = document.getElementById('legend-rename-panel');
+    if (panel.style.display === 'none') {
+        populateLegendRenameList();
+    }
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+function populateLegendRenameList() {
+    const container = document.getElementById('legend-rename-list');
+    const chartEl = document.getElementById('chart-container');
+    const plotData = chartEl.data || [];
+    container.innerHTML = '';
+    plotData.forEach((trace, i) => {
+        if (trace.name) {
+            container.innerHTML += '<label>' + trace.name + ': <input type="text" class="legend-rename-input" data-idx="' + i + '" value="' + trace.name + '"></label><br>';
+        }
+    });
+}
+
+function applyLegendRename() {
+    document.getElementById('legend-rename-panel').style.display = 'none';
+    loadChart();
+}
+
+// Event delegation for checkboxes (table loaded via AJAX)
+document.addEventListener('change', function(e) {
+    if (e.target.id === 'select-all') {
+        document.querySelectorAll('.exp-check').forEach(cb => cb.checked = e.target.checked);
+    }
+    if (e.target.classList.contains('exp-check')) {
+        const all = document.querySelectorAll('.exp-check');
+        const checked = document.querySelectorAll('.exp-check:checked');
+        const selectAll = document.getElementById('select-all');
+        if (selectAll) selectAll.checked = all.length > 0 && all.length === checked.length;
+    }
+    updateSelectedCount();
+});
 </script>
 {% endblock %}
