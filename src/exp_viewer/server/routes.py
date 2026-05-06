@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 from ..render.charts import CHART_BUILDERS
 from ..render.export import comparison_html, export_html
 from ..render.table import build_table_html, parse_filter_params
+from ..schema import extract_type_overrides, extract_visibility, load_fields_config
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
@@ -26,7 +27,12 @@ async def dashboard(request: Request):
     """Main dashboard page."""
     db = _get_db(request)
     exp_set = db.load_all()
-    fields = _get_field_info(exp_set)
+    root = getattr(request.app.state, "experiments_root", None)
+    visibility = {}
+    if root is not None:
+        field_configs = load_fields_config(root)
+        visibility = extract_visibility(field_configs)
+    fields = _get_field_info(exp_set, visibility=visibility)
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -143,6 +149,9 @@ async def get_chart(
     color: str | None = Query(None),
     size: str | None = Query(None),
     dimensions: str | None = Query(None),
+    z: str | None = Query(None),
+    group_mode: str = Query("grouped"),
+    nbins: int = Query(20),
     title: str = Query(""),
 ):
     """Return a Plotly chart as JSON."""
@@ -158,7 +167,8 @@ async def get_chart(
 
     try:
         if chart_type == "bar":
-            fig = builder(exp_set, x_field=x or "id", y_field=y or "", color_field=color, title=title)
+            fig = builder(exp_set, x_field=x or "id", y_field=y or "",
+                          color_field=color, group_mode=group_mode, title=title)
         elif chart_type == "line":
             y_fields = y.split(",") if y else []
             fig = builder(exp_set, x_field=x or "id", y_fields=y_fields, title=title)
@@ -175,6 +185,36 @@ async def get_chart(
                 exp_set, x_field=x or "", y_field=y or "",
                 value_field=size or "", title=title,
             )
+        elif chart_type == "box":
+            fig = builder(exp_set, y_field=y or "",
+                          group_field=x or None, color_field=color, title=title)
+        elif chart_type == "violin":
+            fig = builder(exp_set, y_field=y or "",
+                          group_field=x or None, color_field=color, title=title)
+        elif chart_type == "scatter_3d":
+            fig = builder(exp_set, x_field=x or "", y_field=y or "",
+                          z_field=z or "", color_field=color,
+                          size_field=size, title=title)
+        elif chart_type == "pie":
+            fig = builder(exp_set, values_field=y or "",
+                          labels_field=x or None, title=title)
+        elif chart_type == "histogram":
+            fig = builder(exp_set, x_field=x or "", color_field=color,
+                          group_mode=group_mode, nbins=nbins, title=title)
+        elif chart_type == "contour":
+            fig = builder(exp_set, x_field=x or "", y_field=y or "",
+                          value_field=size or "", title=title)
+        elif chart_type == "radar":
+            dims = dimensions.split(",") if dimensions else []
+            fig = builder(exp_set, dimensions=dims,
+                          label_field=x or None, title=title)
+        elif chart_type == "area":
+            y_fields = y.split(",") if y else []
+            fig = builder(exp_set, x_field=x or "id",
+                          y_fields=y_fields, title=title)
+        elif chart_type == "funnel":
+            fig = builder(exp_set, values_field=y or "",
+                          labels_field=x or None, title=title)
         else:
             fig = builder(exp_set, title=title)
 
@@ -215,8 +255,9 @@ async def download_export(request: Request):
     )
 
 
-def _get_field_info(exp_set) -> dict[str, Any]:
+def _get_field_info(exp_set, visibility: dict[str, bool] | None = None) -> dict[str, Any]:
     """Extract field names and types for the frontend."""
+    vis = visibility or {}
     hp_keys = exp_set.all_hyperparameter_keys
     res_keys = exp_set.all_result_keys
     fields = {}
@@ -224,13 +265,21 @@ def _get_field_info(exp_set) -> dict[str, Any]:
         for exp in exp_set:
             fv = exp.hyperparameters.get(k)
             if fv:
-                fields[k] = {"type": fv.field_type.value, "category": "hyperparameter"}
+                fields[k] = {
+                    "type": fv.field_type.value,
+                    "category": "hyperparameter",
+                    "visible": vis.get(k, True),
+                }
                 break
     for k in res_keys:
         for exp in exp_set:
             fv = exp.results.get(k)
             if fv:
-                fields[k] = {"type": fv.field_type.value, "category": "result"}
+                fields[k] = {
+                    "type": fv.field_type.value,
+                    "category": "result",
+                    "visible": vis.get(k, True),
+                }
                 break
     return {
         "hyperparameters": hp_keys,

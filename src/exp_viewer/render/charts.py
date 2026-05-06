@@ -86,6 +86,7 @@ def bar_chart(
     x_field: str,
     y_field: str,
     color_field: str | None = None,
+    group_mode: str = "grouped",
     title: str = "",
 ) -> go.Figure:
     """Bar chart comparing a metric across experiments."""
@@ -95,19 +96,36 @@ def bar_chart(
     x_plot, x_axis = _categorize_axis(x_vals, x_ft)
 
     fig = go.Figure()
-    fig.add_trace(
-        go.Bar(
-            x=x_plot,
-            y=y_vals,
-            text=[f"{v:.4f}" if isinstance(v, float) else str(v) for v in y_vals],
-            textposition="auto",
+
+    if color_field:
+        color_vals, _ = _resolve_field(experiment_set, color_field)
+        groups = sorted(set(str(v) for v in color_vals if v is not None))
+        for g in groups:
+            gx, gy = [], []
+            for xv, yv, cv in zip(x_plot, y_vals, color_vals):
+                if str(cv) == g:
+                    gx.append(xv)
+                    gy.append(yv)
+            fig.add_trace(go.Bar(x=gx, y=gy, name=g, textposition="auto"))
+        barmode = "stack" if group_mode == "stacked" else "group"
+    else:
+        fig.add_trace(
+            go.Bar(
+                x=x_plot,
+                y=y_vals,
+                text=[f"{v:.4f}" if isinstance(v, float) else str(v) for v in y_vals],
+                textposition="auto",
+            )
         )
-    )
+        barmode = None
+
     layout_kwargs: dict[str, Any] = dict(
         title=title or f"{_clean_key(y_field)} by {_clean_key(x_field)}",
         xaxis_title=_clean_key(x_field),
         yaxis_title=_clean_key(y_field),
     )
+    if barmode:
+        layout_kwargs["barmode"] = barmode
     if x_axis:
         layout_kwargs["xaxis"] = x_axis
     fig.update_layout(**layout_kwargs)
@@ -299,6 +317,280 @@ def heatmap_chart(
     return fig
 
 
+def box_plot(
+    experiment_set: ExperimentSet,
+    y_field: str,
+    group_field: str | None = None,
+    color_field: str | None = None,
+    title: str = "",
+) -> go.Figure:
+    """Box plot for a metric, optionally grouped by a categorical field."""
+    y_vals, _ = _resolve_field(experiment_set, y_field)
+    fig = go.Figure()
+
+    if group_field:
+        group_vals, _ = _resolve_field(experiment_set, group_field)
+        groups = sorted(set(str(v) for v in group_vals if v is not None))
+        for g in groups:
+            gy = [yv for yv, gv in zip(y_vals, group_vals) if str(gv) == g]
+            fig.add_trace(go.Box(y=gy, name=g, boxmean="sd"))
+    else:
+        fig.add_trace(go.Box(y=y_vals, name=_clean_key(y_field), boxmean="sd"))
+
+    fig.update_layout(
+        title=title or f"Distribution of {_clean_key(y_field)}",
+        yaxis_title=_clean_key(y_field),
+        boxmode="group",
+    )
+    return fig
+
+
+def violin_plot(
+    experiment_set: ExperimentSet,
+    y_field: str,
+    group_field: str | None = None,
+    color_field: str | None = None,
+    title: str = "",
+) -> go.Figure:
+    """Violin plot for a metric, optionally grouped by a categorical field."""
+    y_vals, _ = _resolve_field(experiment_set, y_field)
+    fig = go.Figure()
+
+    if group_field:
+        group_vals, _ = _resolve_field(experiment_set, group_field)
+        groups = sorted(set(str(v) for v in group_vals if v is not None))
+        for g in groups:
+            gy = [yv for yv, gv in zip(y_vals, group_vals) if str(gv) == g]
+            fig.add_trace(
+                go.Violin(y=gy, name=g, box_visible=True, meanline_visible=True)
+            )
+    else:
+        fig.add_trace(
+            go.Violin(
+                y=y_vals, name=_clean_key(y_field), box_visible=True,
+                meanline_visible=True,
+            )
+        )
+
+    fig.update_layout(
+        title=title or f"Distribution of {_clean_key(y_field)}",
+        yaxis_title=_clean_key(y_field),
+        violinmode="group",
+    )
+    return fig
+
+
+def scatter_3d(
+    experiment_set: ExperimentSet,
+    x_field: str,
+    y_field: str,
+    z_field: str,
+    color_field: str | None = None,
+    size_field: str | None = None,
+    title: str = "",
+) -> go.Figure:
+    """3D scatter plot."""
+    x_vals, _ = _resolve_field(experiment_set, x_field)
+    y_vals, _ = _resolve_field(experiment_set, y_field)
+    z_vals, _ = _resolve_field(experiment_set, z_field)
+    ids = [exp.id for exp in experiment_set]
+
+    kwargs: dict[str, Any] = dict(
+        x=x_vals, y=y_vals, z=z_vals, mode="markers", text=ids,
+    )
+
+    if color_field:
+        color_vals, _ = _resolve_field(experiment_set, color_field)
+        kwargs["marker"] = dict(
+            color=color_vals, colorscale="Viridis", showscale=True,
+            colorbar=dict(title=_clean_key(color_field)),
+        )
+
+    fig = go.Figure(go.Scatter3d(**kwargs))
+    fig.update_layout(
+        title=title or f"3D: {_clean_key(x_field)} x {_clean_key(y_field)} x {_clean_key(z_field)}",
+        scene=dict(
+            xaxis_title=_clean_key(x_field),
+            yaxis_title=_clean_key(y_field),
+            zaxis_title=_clean_key(z_field),
+        ),
+    )
+    return fig
+
+
+def pie_chart(
+    experiment_set: ExperimentSet,
+    values_field: str,
+    labels_field: str | None = None,
+    title: str = "",
+) -> go.Figure:
+    """Pie chart of values with optional labels."""
+    vals, _ = _resolve_field(experiment_set, values_field)
+    if labels_field:
+        labels, _ = _resolve_field(experiment_set, labels_field)
+        labels = [str(v) for v in labels]
+    else:
+        labels = [exp.id for exp in experiment_set]
+
+    fig = go.Figure(go.Pie(labels=labels, values=vals, textinfo="label+percent"))
+    fig.update_layout(title=title or f"{_clean_key(values_field)} Distribution")
+    return fig
+
+
+def histogram_chart(
+    experiment_set: ExperimentSet,
+    x_field: str,
+    color_field: str | None = None,
+    group_mode: str = "overlay",
+    nbins: int = 20,
+    title: str = "",
+) -> go.Figure:
+    """Histogram of a field, optionally grouped by color."""
+    x_vals, _ = _resolve_field(experiment_set, x_field)
+    fig = go.Figure()
+
+    if color_field:
+        color_vals, _ = _resolve_field(experiment_set, color_field)
+        groups = sorted(set(str(v) for v in color_vals if v is not None))
+        for g in groups:
+            gx = [xv for xv, cv in zip(x_vals, color_vals) if str(cv) == g]
+            fig.add_trace(
+                go.Histogram(x=gx, name=g, nbinsx=nbins, opacity=0.7)
+            )
+    else:
+        fig.add_trace(go.Histogram(x=x_vals, nbinsx=nbins))
+
+    barmode = {"overlay": "overlay", "stack": "stack", "group": "group"}.get(
+        group_mode, "overlay"
+    )
+    fig.update_layout(
+        title=title or f"Distribution of {_clean_key(x_field)}",
+        xaxis_title=_clean_key(x_field),
+        yaxis_title="Count",
+        barmode=barmode,
+    )
+    return fig
+
+
+def contour_chart(
+    experiment_set: ExperimentSet,
+    x_field: str,
+    y_field: str,
+    value_field: str,
+    title: str = "",
+) -> go.Figure:
+    """Contour plot showing value_field for each (x, y) pair."""
+    x_vals, _ = _resolve_field(experiment_set, x_field)
+    y_vals, _ = _resolve_field(experiment_set, y_field)
+    z_vals, _ = _resolve_field(experiment_set, value_field)
+
+    x_unique = sorted(set(str(v) for v in x_vals if v is not None))
+    y_unique = sorted(set(str(v) for v in y_vals if v is not None))
+
+    z_matrix: list[list[Any]] = [[None] * len(x_unique) for _ in range(len(y_unique))]
+    for xv, yv, zv in zip(x_vals, y_vals, z_vals):
+        if xv is None or yv is None:
+            continue
+        xi = x_unique.index(str(xv))
+        yi = y_unique.index(str(yv))
+        z_matrix[yi][xi] = zv
+
+    fig = go.Figure(go.Contour(x=x_unique, y=y_unique, z=z_matrix))
+    fig.update_layout(
+        title=title
+        or f"{_clean_key(value_field)} ({_clean_key(x_field)} x {_clean_key(y_field)})",
+        xaxis_title=_clean_key(x_field),
+        yaxis_title=_clean_key(y_field),
+    )
+    return fig
+
+
+def radar_chart(
+    experiment_set: ExperimentSet,
+    dimensions: list[str],
+    label_field: str | None = None,
+    title: str = "",
+) -> go.Figure:
+    """Radar/spider chart with one trace per experiment."""
+    fig = go.Figure()
+    for exp in experiment_set:
+        r_vals = []
+        theta_vals = []
+        for d in dimensions:
+            fv = exp.get_field(d)
+            if fv is not None:
+                nv = fv.numeric_value
+                r_vals.append(nv if nv is not None else 0)
+            else:
+                r_vals.append(0)
+            theta_vals.append(_clean_key(d))
+
+        label = getattr(exp, label_field, exp.id) if label_field else exp.id
+        fig.add_trace(
+            go.Scatterpolar(
+                r=r_vals, theta=theta_vals, fill="toself", name=str(label),
+            )
+        )
+
+    fig.update_layout(
+        title=title or "Radar Chart",
+        polar=dict(radialaxis=dict(visible=True)),
+        showlegend=True,
+    )
+    return fig
+
+
+def area_chart(
+    experiment_set: ExperimentSet,
+    x_field: str,
+    y_fields: list[str],
+    title: str = "",
+) -> go.Figure:
+    """Stacked area chart with multiple y fields."""
+    x_vals, x_ft = _resolve_field(experiment_set, x_field)
+    x_plot, x_axis = _categorize_axis(x_vals, x_ft)
+
+    fig = go.Figure()
+    for i, yf in enumerate(y_fields):
+        y_vals, _ = _resolve_field(experiment_set, yf)
+        fill = "tozeroy" if i == 0 else "tonexty"
+        fig.add_trace(
+            go.Scatter(
+                x=x_plot, y=y_vals, mode="lines", name=_clean_key(yf),
+                fill=fill, stackgroup="one",
+            )
+        )
+
+    layout_kwargs: dict[str, Any] = dict(
+        title=title or "Area Chart",
+        xaxis_title=_clean_key(x_field),
+        yaxis_title="Value",
+    )
+    if x_axis:
+        layout_kwargs["xaxis"] = x_axis
+    fig.update_layout(**layout_kwargs)
+    return fig
+
+
+def funnel_chart(
+    experiment_set: ExperimentSet,
+    values_field: str,
+    labels_field: str | None = None,
+    title: str = "",
+) -> go.Figure:
+    """Funnel chart."""
+    vals, _ = _resolve_field(experiment_set, values_field)
+    if labels_field:
+        labels, _ = _resolve_field(experiment_set, labels_field)
+        labels = [str(v) for v in labels]
+    else:
+        labels = [exp.id for exp in experiment_set]
+
+    fig = go.Figure(go.Funnel(y=labels, x=vals, textinfo="value+percent initial"))
+    fig.update_layout(title=title or f"Funnel: {_clean_key(values_field)}")
+    return fig
+
+
 # Map chart type names to builder functions
 CHART_BUILDERS = {
     "bar": bar_chart,
@@ -306,4 +598,13 @@ CHART_BUILDERS = {
     "scatter": scatter_plot,
     "parallel_coordinates": parallel_coordinates,
     "heatmap": heatmap_chart,
+    "box": box_plot,
+    "violin": violin_plot,
+    "scatter_3d": scatter_3d,
+    "pie": pie_chart,
+    "histogram": histogram_chart,
+    "contour": contour_chart,
+    "radar": radar_chart,
+    "area": area_chart,
+    "funnel": funnel_chart,
 }

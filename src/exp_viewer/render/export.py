@@ -8,7 +8,7 @@ from pathlib import Path
 import plotly.graph_objects as go
 
 from ..types import ExperimentSet
-from .charts import CHART_BUILDERS, bar_chart, parallel_coordinates, scatter_plot
+from .charts import CHART_BUILDERS, bar_chart, parallel_coordinates, scatter_plot, box_plot, violin_plot, scatter_3d, pie_chart, histogram_chart, contour_chart, radar_chart, area_chart, funnel_chart
 from .table import build_table_html
 
 

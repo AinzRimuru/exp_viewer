@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from exp_viewer.discovery import scan_directory, register_from_directory
-from exp_viewer.schema import load_fields_config
+from exp_viewer.schema import extract_type_overrides, load_fields_config
 from exp_viewer.types import FieldType
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -20,7 +20,7 @@ class TestRegisterFromDirectory:
         assert exp.hyperparameters["use_augmentation"].field_type == FieldType.BOOLEAN
 
     def test_load_run1_with_overrides(self):
-        overrides = load_fields_config(FIXTURES)
+        overrides = extract_type_overrides(load_fields_config(FIXTURES))
         exp = register_from_directory(FIXTURES / "exp_run1", type_overrides=overrides)
         assert exp.results["accuracy"].field_type == FieldType.PERCENTAGE
         assert exp.results["loss"].field_type == FieldType.NUMERIC

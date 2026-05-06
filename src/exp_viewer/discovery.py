@@ -8,7 +8,7 @@ from pathlib import Path
 
 import orjson
 
-from .schema import infer_type_from_values, load_fields_config, normalize_experiment
+from .schema import extract_type_overrides, infer_type_from_values, load_fields_config, normalize_experiment
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,8 @@ def scan_directory(root: Path) -> "list[Experiment]":
         raise ValueError(f"Not a directory: {root}")
 
     # Phase 1: load raw data from all experiment directories
-    type_overrides = load_fields_config(root)
+    field_configs = load_fields_config(root)
+    type_overrides = extract_type_overrides(field_configs)
 
     raw_experiments: list[tuple[str, dict]] = []  # (dir_name, raw_dict)
 

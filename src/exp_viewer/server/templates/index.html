@@ -44,13 +44,13 @@
             <div>
                 <strong>Hyperparameters</strong>
                 {% for k in fields.hyperparameters %}
-                <label><input type="checkbox" class="col-check hp-group" value="{{ k }}" checked> {{ k }}</label>
+                <label><input type="checkbox" class="col-check hp-group" value="{{ k }}" {{ 'checked' if fields.fields.get(k, {}).get('visible', True) }}> {{ k }}</label>
                 {% endfor %}
             </div>
             <div>
                 <strong>Results</strong>
                 {% for k in fields.results %}
-                <label><input type="checkbox" class="col-check res-group" value="{{ k }}" checked> {{ k }}</label>
+                <label><input type="checkbox" class="col-check res-group" value="{{ k }}" {{ 'checked' if fields.fields.get(k, {}).get('visible', True) }}> {{ k }}</label>
                 {% endfor %}
             </div>
         </div>
@@ -70,45 +70,101 @@
 </div>
 
 <div id="tab-chart" class="tab-content">
-    <div class="controls">
+    <div class="controls chart-controls">
         <label>Chart type:
-            <select id="chart-type">
+            <select id="chart-type" onchange="updateChartControls()">
                 <option value="bar">Bar</option>
                 <option value="scatter">Scatter</option>
                 <option value="line">Line</option>
                 <option value="parallel_coordinates">Parallel Coordinates</option>
                 <option value="heatmap">Heatmap</option>
+                <option value="box">Box</option>
+                <option value="violin">Violin</option>
+                <option value="scatter_3d">3D Scatter</option>
+                <option value="pie">Pie</option>
+                <option value="histogram">Histogram</option>
+                <option value="contour">Contour</option>
+                <option value="radar">Radar</option>
+                <option value="area">Area</option>
+                <option value="funnel">Funnel</option>
             </select>
         </label>
-        <label>X:
-            <select id="chart-x">
-                <option value="id">id</option>
-                {% for k in fields.hyperparameters %}
-                <option value="{{ k }}">{{ k }}</option>
-                {% endfor %}
-                {% for k in fields.results %}
-                <option value="{{ k }}">{{ k }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <label>Y:
-            <select id="chart-y">
-                {% for k in fields.results %}
-                <option value="{{ k }}">{{ k }}</option>
-                {% endfor %}
-                {% for k in fields.hyperparameters %}
-                <option value="{{ k }}">{{ k }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <label>Color:
-            <select id="chart-color">
-                <option value="">-- none --</option>
-                {% for k in fields.results %}
-                <option value="{{ k }}">{{ k }}</option>
-                {% endfor %}
-            </select>
-        </label>
+        <span id="ctrl-x">
+            <label id="label-x">X:
+                <select id="chart-x">
+                    <option value="id">id</option>
+                    {% for k in fields.hyperparameters %}
+                    <option value="{{ k }}">{{ k }}</option>
+                    {% endfor %}
+                    {% for k in fields.results %}
+                    <option value="{{ k }}">{{ k }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+        </span>
+        <span id="ctrl-y">
+            <label id="label-y">Y:
+                <select id="chart-y">
+                    {% for k in fields.results %}
+                    <option value="{{ k }}">{{ k }}</option>
+                    {% endfor %}
+                    {% for k in fields.hyperparameters %}
+                    <option value="{{ k }}">{{ k }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+        </span>
+        <span id="ctrl-color">
+            <label>Color:
+                <select id="chart-color">
+                    <option value="">-- none --</option>
+                    {% for k in fields.results %}
+                    <option value="{{ k }}">{{ k }}</option>
+                    {% endfor %}
+                    {% for k in fields.hyperparameters %}
+                    <option value="{{ k }}">{{ k }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+        </span>
+        <span id="ctrl-z" style="display:none;">
+            <label>Z:
+                <select id="chart-z">
+                    {% for k in fields.results %}
+                    <option value="{{ k }}">{{ k }}</option>
+                    {% endfor %}
+                    {% for k in fields.hyperparameters %}
+                    <option value="{{ k }}">{{ k }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+        </span>
+        <span id="ctrl-mode" style="display:none;">
+            <label>Mode:
+                <select id="chart-mode">
+                    <option value="grouped">Grouped</option>
+                    <option value="stacked">Stacked</option>
+                    <option value="overlay">Overlay</option>
+                </select>
+            </label>
+        </span>
+        <span id="ctrl-bins" style="display:none;">
+            <label>Bins:
+                <input type="number" id="chart-bins" value="20" min="5" max="100" style="width:60px;">
+            </label>
+        </span>
+        <span id="ctrl-dims" style="display:none;">
+            <label id="label-dims">Dimensions:
+                <select id="chart-dims" multiple size="4">
+                    {% for k in fields.hyperparameters %}
+                    <option value="{{ k }}">{{ k }}</option>
+                    {% endfor %}
+                    {% for k in fields.results %}
+                    <option value="{{ k }}">{{ k }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+        </span>
         <button onclick="loadChart()">Draw</button>
     </div>
     <div class="chart-container" id="chart-container"></div>
@@ -122,6 +178,47 @@ function switchTab(tabId) {
     document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
     document.getElementById(tabId).classList.add('active');
     document.querySelector('[data-tab="'+tabId+'"]').classList.add('active');
+}
+
+function updateChartControls() {
+    const t = document.getElementById('chart-type').value;
+    const show = (id) => document.getElementById(id).style.display = '';
+    const hide = (id) => document.getElementById(id).style.display = 'none';
+
+    // Hide all optional controls
+    ['ctrl-x','ctrl-y','ctrl-color','ctrl-z','ctrl-mode','ctrl-bins','ctrl-dims'].forEach(hide);
+
+    // Reset labels
+    document.getElementById('label-x').firstChild.textContent = 'X: ';
+    document.getElementById('label-y').firstChild.textContent = 'Y: ';
+    document.getElementById('label-dims').firstChild.textContent = 'Dimensions: ';
+
+    const needsX = ['bar','scatter','line','heatmap','scatter_3d','box','violin','pie','histogram','contour','area','funnel'];
+    const needsY = ['bar','scatter','line','heatmap','scatter_3d','box','violin','pie','area'];
+    const needsColor = ['scatter','scatter_3d','parallel_coordinates','box','violin','histogram'];
+    const needsZ = ['scatter_3d'];
+    const needsMode = ['bar','histogram'];
+    const needsBins = ['histogram'];
+    const needsDims = ['parallel_coordinates','radar'];
+
+    if (needsX.includes(t)) show('ctrl-x');
+    if (needsY.includes(t)) show('ctrl-y');
+    if (needsColor.includes(t)) show('ctrl-color');
+    if (needsZ.includes(t)) show('ctrl-z');
+    if (needsMode.includes(t)) show('ctrl-mode');
+    if (needsBins.includes(t)) show('ctrl-bins');
+    if (needsDims.includes(t)) {
+        show('ctrl-dims');
+        document.getElementById('label-dims').firstChild.textContent = 'Dimensions: ';
+    }
+
+    // Dynamic labels
+    if (t === 'pie' || t === 'funnel') {
+        document.getElementById('label-x').firstChild.textContent = 'Labels: ';
+        document.getElementById('label-y').firstChild.textContent = 'Values: ';
+    } else if (t === 'box' || t === 'violin') {
+        document.getElementById('label-x').firstChild.textContent = 'Group: ';
+    }
 }
 
 function loadTable() {
@@ -177,10 +274,40 @@ function toggleGroup(cls) {
 function loadChart() {
     const chartType = document.getElementById('chart-type').value;
     const params = new URLSearchParams();
-    params.set('x', document.getElementById('chart-x').value);
-    params.set('y', document.getElementById('chart-y').value);
+    const x = document.getElementById('chart-x').value;
+    const y = document.getElementById('chart-y').value;
     const color = document.getElementById('chart-color').value;
-    if (color) params.set('color', color);
+
+    if (['bar','scatter','line','heatmap','scatter_3d','box','violin','pie','histogram','contour','area','funnel'].includes(chartType)) {
+        params.set('x', x);
+    }
+    if (['bar','scatter','line','heatmap','scatter_3d','box','violin','pie','area'].includes(chartType)) {
+        params.set('y', y);
+    }
+    if (['scatter','scatter_3d','parallel_coordinates','box','violin','histogram'].includes(chartType) && color) {
+        params.set('color', color);
+    }
+
+    if (chartType === 'scatter_3d') {
+        params.set('z', document.getElementById('chart-z').value);
+    }
+    if (chartType === 'bar' || chartType === 'histogram') {
+        params.set('group_mode', document.getElementById('chart-mode').value);
+    }
+    if (chartType === 'histogram') {
+        params.set('nbins', document.getElementById('chart-bins').value);
+    }
+    if (chartType === 'parallel_coordinates' || chartType === 'radar') {
+        const dims = Array.from(document.getElementById('chart-dims').selectedOptions).map(o => o.value);
+        if (dims.length > 0) params.set('dimensions', dims.join(','));
+    }
+    if (chartType === 'area') {
+        // Y is already set above as single value for area
+    }
+    if (chartType === 'heatmap' || chartType === 'contour') {
+        // Use color field as value_field via size param
+        if (color) params.set('size', color);
+    }
 
     fetch('/api/chart/' + chartType + '?' + params.toString())
         .then(r => r.json())
@@ -193,7 +320,8 @@ function loadChart() {
         });
 }
 
-// Load table on page load
+// Initialize
+updateChartControls();
 loadTable();
 </script>
 {% endblock %}

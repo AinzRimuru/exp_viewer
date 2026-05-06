@@ -5,7 +5,7 @@
     "use_augmentation": "boolean",
     "train_pct": "percentage",
     "accuracy": "percentage",
-    "loss": "numeric",
+    "loss": {"type": "numeric", "visible": false},
     "f1_score": "percentage",
     "converged": "boolean",
     "epochs": "numeric"

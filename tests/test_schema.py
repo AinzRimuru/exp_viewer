@@ -4,13 +4,15 @@ from pathlib import Path
 
 from exp_viewer.schema import (
     FIELDS_CONFIG_FILENAME,
+    extract_type_overrides,
+    extract_visibility,
     infer_type,
     infer_type_from_values,
     load_fields_config,
     normalize_experiment,
     normalize_fields,
 )
-from exp_viewer.types import FieldType
+from exp_viewer.types import FieldConfig, FieldType
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -72,14 +74,76 @@ class TestInferType:
 class TestLoadFieldsConfig:
     def test_load_from_fixtures(self):
         config = load_fields_config(FIXTURES)
-        assert config["accuracy"] == "percentage"
-        assert config["loss"] == "numeric"
-        assert config["optimizer"] == "string"
-        assert config["converged"] == "boolean"
+        assert config["accuracy"] == FieldConfig(type="percentage", visible=True)
+        assert config["loss"] == FieldConfig(type="numeric", visible=False)
+        assert config["optimizer"] == FieldConfig(type="string", visible=True)
+        assert config["converged"] == FieldConfig(type="boolean", visible=True)
 
     def test_missing_file(self):
         config = load_fields_config(FIXTURES / "exp_run1")
         assert config == {}
+
+    def test_string_format(self, tmp_path):
+        """Pure string format: "field": "numeric"."""
+        (tmp_path / "fields.json").write_text('{"lr": "numeric", "opt": "string"}')
+        config = load_fields_config(tmp_path)
+        assert config == {"lr": FieldConfig(type="numeric", visible=True),
+                          "opt": FieldConfig(type="string", visible=True)}
+
+    def test_object_format_with_visible(self, tmp_path):
+        """Object format with type and visible."""
+        (tmp_path / "fields.json").write_text(
+            '{"lr": {"type": "numeric", "visible": false}, '
+            '"acc": {"type": "percentage"}}'
+        )
+        config = load_fields_config(tmp_path)
+        assert config == {"lr": FieldConfig(type="numeric", visible=False),
+                          "acc": FieldConfig(type="percentage", visible=True)}
+
+    def test_nested_format(self, tmp_path):
+        """Nested {"hyperparameters": {...}, "results": {...}} format."""
+        (tmp_path / "fields.json").write_text(
+            '{"hyperparameters": {"lr": "numeric"}, "results": {"acc": "percentage"}}'
+        )
+        config = load_fields_config(tmp_path)
+        assert config == {"lr": FieldConfig(type="numeric", visible=True),
+                          "acc": FieldConfig(type="percentage", visible=True)}
+
+    def test_mixed_format(self, tmp_path):
+        """Mix of string and object formats."""
+        (tmp_path / "fields.json").write_text(
+            '{"lr": "numeric", "loss": {"type": "numeric", "visible": false}}'
+        )
+        config = load_fields_config(tmp_path)
+        assert config["lr"] == FieldConfig(type="numeric", visible=True)
+        assert config["loss"] == FieldConfig(type="numeric", visible=False)
+
+
+class TestExtractTypeOverrides:
+    def test_basic(self):
+        configs = {
+            "lr": FieldConfig(type="numeric", visible=True),
+            "opt": FieldConfig(type="string", visible=False),
+            "acc": FieldConfig(type=None, visible=True),
+        }
+        overrides = extract_type_overrides(configs)
+        assert overrides == {"lr": "numeric", "opt": "string"}
+
+    def test_empty(self):
+        assert extract_type_overrides({}) == {}
+
+
+class TestExtractVisibility:
+    def test_basic(self):
+        configs = {
+            "lr": FieldConfig(type="numeric", visible=True),
+            "loss": FieldConfig(type="numeric", visible=False),
+        }
+        vis = extract_visibility(configs)
+        assert vis == {"lr": True, "loss": False}
+
+    def test_empty(self):
+        assert extract_visibility({}) == {}
 
 
 class TestNormalizeFields:

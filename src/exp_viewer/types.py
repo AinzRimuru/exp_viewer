@@ -87,6 +87,14 @@ class FieldValue:
 
 
 @dataclass
+class FieldConfig:
+    """Configuration for a field from fields.json."""
+
+    type: str | None = None
+    visible: bool = True
+
+
+@dataclass
 class Experiment:
     """A single experiment with hyperparameters and results."""
 

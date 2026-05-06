@@ -8,7 +8,7 @@ from typing import Any
 
 import orjson
 
-from .types import Experiment, FieldType, FieldValue
+from .types import Experiment, FieldConfig, FieldType, FieldValue
 
 # Field name substrings that hint at percentage type
 _PERCENTAGE_HINTS = {"pct", "percent", "accuracy", "score", "ratio"}
@@ -17,11 +17,18 @@ _PERCENTAGE_HINTS = {"pct", "percent", "accuracy", "score", "ratio"}
 FIELDS_CONFIG_FILENAME = "fields.json"
 
 
-def load_fields_config(root: Path) -> dict[str, str]:
-    """Load field type overrides from fields.json in the experiment root.
+def load_fields_config(root: Path) -> dict[str, FieldConfig]:
+    """Load field type overrides and visibility from fields.json.
 
-    Returns a dict mapping field_name -> type_string (e.g. {"accuracy": "percentage"}).
+    Returns a dict mapping field_name -> FieldConfig.
     Returns empty dict if the file does not exist.
+
+    Supports three value formats:
+    - "field": "numeric" -> FieldConfig(type="numeric", visible=True)
+    - "field": {"type": "numeric", "visible": false}
+    - "field": {"type": "numeric"}
+
+    Accepts both flat and nested {"hyperparameters": {...}, "results": {...}}.
     """
     config_path = root / FIELDS_CONFIG_FILENAME
     if not config_path.is_file():
@@ -30,16 +37,36 @@ def load_fields_config(root: Path) -> dict[str, str]:
         data = orjson.loads(config_path.read_bytes())
     except (OSError, orjson.JSONDecodeError):
         return {}
-    # Accept both flat {"field": "type"} and nested {"hyperparameters": {...}, "results": {...}}
-    flat: dict[str, str] = {}
+    flat: dict[str, FieldConfig] = {}
     for key, val in data.items():
         if isinstance(val, str):
-            flat[key] = val
+            flat[key] = FieldConfig(type=val)
+        elif isinstance(val, dict) and "type" in val or isinstance(val, dict) and "visible" in val:
+            flat[key] = FieldConfig(
+                type=val.get("type"),
+                visible=val.get("visible", True),
+            )
         elif isinstance(val, dict):
+            # Nested format: {"hyperparameters": {...}, "results": {...}}
             for k2, v2 in val.items():
                 if isinstance(v2, str):
-                    flat[k2] = v2
+                    flat[k2] = FieldConfig(type=v2)
+                elif isinstance(v2, dict):
+                    flat[k2] = FieldConfig(
+                        type=v2.get("type"),
+                        visible=v2.get("visible", True),
+                    )
     return flat
+
+
+def extract_type_overrides(configs: dict[str, FieldConfig]) -> dict[str, str]:
+    """Extract type-only overrides from FieldConfig dict for the type inference pipeline."""
+    return {k: v.type for k, v in configs.items() if v.type is not None}
+
+
+def extract_visibility(configs: dict[str, FieldConfig]) -> dict[str, bool]:
+    """Extract field visibility mapping from FieldConfig dict."""
+    return {k: v.visible for k, v in configs.items()}
 
 
 _TYPE_MAP = {
