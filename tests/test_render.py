@@ -55,6 +55,28 @@ class TestTable:
         filters = parse_filter_params(params)
         assert filters == {"accuracy": ("gt", "0.9"), "optimizer": ("eq", "adam")}
 
+    def test_table_with_project(self):
+        """Table shows project column when experiments have projects."""
+        exps = _load_fixtures()
+        for exp in exps:
+            exp.project = "test_project"
+        es = ExperimentSet(exps)
+        html = build_table_html(es)
+        assert "col-project" in html
+        assert "test_project" in html
+
+    def test_table_without_project(self):
+        """Table omits project column when experiments have empty project."""
+        from exp_viewer.types import Experiment, FieldValue, FieldType
+        exps = [Experiment(
+            id="a", name="A",
+            hyperparameters={"lr": FieldValue(0.01, FieldType.NUMERIC)},
+            results={"acc": FieldValue(0.9, FieldType.PERCENTAGE)},
+        )]
+        es = ExperimentSet(exps)
+        html = build_table_html(es)
+        assert "col-project" not in html
+
 
 class TestCharts:
     def test_bar_chart(self):

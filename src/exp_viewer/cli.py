@@ -15,7 +15,8 @@ def main() -> None:
 
     # serve
     serve_parser = subparsers.add_parser("serve", help="Start interactive web server")
-    serve_parser.add_argument("path", help="Path to experiments directory or SQLite DB")
+    serve_parser.add_argument("paths", nargs="+", help="Paths to experiment directories or SQLite DB")
+    serve_parser.add_argument("--labels", help="Comma-separated project labels (one per path)")
     serve_parser.add_argument("--host", default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
     serve_parser.add_argument("--port", type=int, default=8050, help="Bind port (default: 8050)")
     serve_parser.add_argument("--db", help="SQLite database path (default: in-memory)")
@@ -62,6 +63,24 @@ def _resolve_path(path: str) -> tuple[Path | None, Path | None]:
     sys.exit(1)
 
 
+def _resolve_paths(
+    paths: list[str], labels: list[str] | None = None
+) -> list[tuple[Path, str]]:
+    """Resolve multiple paths to [(root, project_label), ...]."""
+    result: list[tuple[Path, str]] = []
+    for i, p in enumerate(paths):
+        path = Path(p)
+        label = labels[i] if labels and i < len(labels) else path.name
+        if path.is_dir():
+            result.append((path, label))
+        elif path.is_file() and path.suffix == ".db":
+            result.append((path, label))
+        else:
+            print(f"Error: {p} is not a directory or .db file", file=sys.stderr)
+            sys.exit(1)
+    return result
+
+
 def _load_experiments(args):
     """Load experiments from args.path, return ExperimentSet."""
     from .database import Database
@@ -81,10 +100,21 @@ def _cmd_serve(args) -> None:
     import uvicorn
     from .server.app import create_app
 
-    root, db_path = _resolve_path(args.path)
-    app = create_app(experiments_root=root, db_path=db_path)
-    if root:
-        app.state.experiments_root = root
+    # Single .db file: backward compatible
+    if len(args.paths) == 1:
+        p = Path(args.paths[0])
+        if p.is_file() and p.suffix == ".db":
+            root, db_path = _resolve_path(args.paths[0])
+            app = create_app(experiments_root=root, db_path=db_path)
+            if root:
+                app.state.experiments_root = root
+            print(f"Starting server at http://{args.host}:{args.port}")
+            uvicorn.run(app, host=args.host, port=args.port)
+            return
+
+    labels = args.labels.split(",") if args.labels else None
+    roots = _resolve_paths(args.paths, labels)
+    app = create_app(experiments_roots=roots)
 
     print(f"Starting server at http://{args.host}:{args.port}")
     uvicorn.run(app, host=args.host, port=args.port)

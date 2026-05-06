@@ -66,3 +66,12 @@ class TestDatabase:
         db2.close()
 
         db_path.unlink()
+
+    def test_save_and_load_project(self):
+        db = Database()
+        exp = _make_exp("proj_test")
+        exp.project = "my_project"
+        db.save(exp)
+        loaded = db.load_by_id("proj_test")
+        assert loaded is not None
+        assert loaded.project == "my_project"

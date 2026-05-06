@@ -68,7 +68,7 @@ def register_from_directory(
     return normalize_experiment(raw, default_id=dir_name, type_overrides=type_overrides)
 
 
-def scan_directory(root: Path) -> "list[Experiment]":
+def scan_directory(root: Path, *, project: str = "") -> "list[Experiment]":
     """Scan a root directory for experiment subdirectories.
 
     A valid experiment directory must contain at least one of:
@@ -80,6 +80,10 @@ def scan_directory(root: Path) -> "list[Experiment]":
        experiments and pick the narrowest common type
     3. Per-value name-based inference (fallback)
 
+    Args:
+        root: Path to directory containing experiment subdirectories.
+        project: Project label for all experiments. Defaults to root directory name.
+
     Returns a list of Experiment objects. Skips invalid directories with a warning.
     """
     from .types import Experiment
@@ -87,6 +91,9 @@ def scan_directory(root: Path) -> "list[Experiment]":
     root = Path(root)
     if not root.is_dir():
         raise ValueError(f"Not a directory: {root}")
+
+    if not project:
+        project = root.name
 
     # Phase 1: load raw data from all experiment directories
     field_configs = load_fields_config(root)
@@ -132,6 +139,7 @@ def scan_directory(root: Path) -> "list[Experiment]":
             type_overrides=combined_overrides,
             all_hp_keys=all_hp_keys,
             all_res_keys=all_res_keys,
+            project=project,
         )
         experiments.append(exp)
 

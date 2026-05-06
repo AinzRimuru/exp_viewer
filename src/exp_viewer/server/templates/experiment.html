@@ -2,7 +2,7 @@
 {% block title %}Experiment {{ experiment.id }}{% endblock %}
 {% block content %}
 <h2>Experiment: {{ experiment.name }}</h2>
-<p class="stats">ID: {{ experiment.id }} | Created: {{ experiment.created_at }} | Tags: {{ experiment.tags | join(', ') }}</p>
+<p class="stats">ID: {{ experiment.id }}{% if experiment.project %} | Project: <span class="project-badge">{{ experiment.project }}</span>{% endif %} | Created: {{ experiment.created_at }} | Tags: {{ experiment.tags | join(', ') }}</p>
 
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
     <div>

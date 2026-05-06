@@ -27,16 +27,25 @@ async def dashboard(request: Request):
     """Main dashboard page."""
     db = _get_db(request)
     exp_set = db.load_all()
-    root = getattr(request.app.state, "experiments_root", None)
-    visibility = {}
-    if root is not None:
+
+    # Merge visibility from all project roots
+    roots = getattr(request.app.state, "experiments_roots", [])
+    visibility: dict[str, bool] = {}
+    for root, _ in roots:
         field_configs = load_fields_config(root)
-        visibility = extract_visibility(field_configs)
+        for k, v in extract_visibility(field_configs).items():
+            if k not in visibility:
+                visibility[k] = v
+            else:
+                visibility[k] = visibility[k] or v
+
     fields = _get_field_info(exp_set, visibility=visibility)
+    projects = sorted({exp.project for exp in exp_set if exp.project})
+
     return templates.TemplateResponse(
         request,
         "index.html",
-        {"experiment_count": len(exp_set), "fields": fields},
+        {"experiment_count": len(exp_set), "fields": fields, "projects": projects},
     )
 
 
@@ -50,6 +59,7 @@ async def list_experiments(request: Request):
         experiments.append({
             "id": exp.id,
             "name": exp.name,
+            "project": exp.project,
             "created_at": exp.created_at,
             "tags": exp.tags,
             "hyperparameters": {
@@ -88,6 +98,7 @@ async def get_experiment(request: Request, exp_id: str):
     return JSONResponse({
         "id": exp.id,
         "name": exp.name,
+        "project": exp.project,
         "created_at": exp.created_at,
         "tags": exp.tags,
         "hyperparameters": {
@@ -115,10 +126,16 @@ async def get_table(
     sort_by: str | None = Query(None),
     sort_desc: bool = Query(False),
     columns: str | None = Query(None),
+    project: str | None = Query(None),
 ):
     """Return the experiment table as an HTML fragment."""
     db = _get_db(request)
     exp_set = db.load_all()
+
+    # Filter by project(s)
+    if project:
+        selected = set(project.split(","))
+        exp_set = exp_set.filter(lambda e: e.project in selected)
 
     # Collect filter params
     filter_params = {}
@@ -227,15 +244,26 @@ async def get_chart(
 async def rescan(request: Request):
     """Re-scan the experiment directory and reload the database."""
     db = _get_db(request)
+    roots = getattr(request.app.state, "experiments_roots", [])
     root = getattr(request.app.state, "experiments_root", None)
-    if root is None:
-        return JSONResponse({"error": "No experiment root configured"}, status_code=400)
 
     db.clear()
-    experiments = scan_directory(root)
-    for exp in experiments:
-        db.save(exp)
-    return JSONResponse({"loaded": len(experiments)})
+    count = 0
+    if roots:
+        for r, label in roots:
+            experiments = scan_directory(r, project=label)
+            for exp in experiments:
+                db.save(exp)
+            count += len(experiments)
+    elif root is not None:
+        experiments = scan_directory(root)
+        for exp in experiments:
+            db.save(exp)
+        count = len(experiments)
+    else:
+        return JSONResponse({"error": "No experiment root configured"}, status_code=400)
+
+    return JSONResponse({"loaded": count})
 
 
 @router.get("/export")
@@ -285,4 +313,5 @@ def _get_field_info(exp_set, visibility: dict[str, bool] | None = None) -> dict[
         "hyperparameters": hp_keys,
         "results": res_keys,
         "fields": fields,
+        "projects": sorted({exp.project for exp in exp_set if exp.project}),
     }

@@ -4,6 +4,16 @@
 <div class="stats">Total experiments: <strong>{{ experiment_count }}</strong></div>
 
 <div class="controls">
+    {% if projects %}
+    <label>Project:
+        <select id="project-filter">
+            <option value="">-- all --</option>
+            {% for p in projects %}
+            <option value="{{ p }}">{{ p }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    {% endif %}
     <label>Sort by:
         <select id="sort-field">
             <option value="">-- none --</option>
@@ -93,6 +103,7 @@
             <label id="label-x">X:
                 <select id="chart-x">
                     <option value="id">id</option>
+                    {% if projects %}<option value="project">project</option>{% endif %}
                     {% for k in fields.hyperparameters %}
                     <option value="{{ k }}">{{ k }}</option>
                     {% endfor %}
@@ -105,6 +116,7 @@
         <span id="ctrl-y">
             <label id="label-y">Y:
                 <select id="chart-y">
+                    {% if projects %}<option value="project">project</option>{% endif %}
                     {% for k in fields.results %}
                     <option value="{{ k }}">{{ k }}</option>
                     {% endfor %}
@@ -118,6 +130,7 @@
             <label>Color:
                 <select id="chart-color">
                     <option value="">-- none --</option>
+                    {% if projects %}<option value="project">project</option>{% endif %}
                     {% for k in fields.results %}
                     <option value="{{ k }}">{{ k }}</option>
                     {% endfor %}
@@ -229,6 +242,10 @@ function loadTable() {
 
     if (sortBy) params.set('sort_by', sortBy);
     if (sortOrder === 'desc') params.set('sort_desc', 'true');
+
+    // Project filter
+    const projFilter = document.getElementById('project-filter');
+    if (projFilter && projFilter.value) params.set('project', projFilter.value);
 
     if (filterInput) {
         // Parse "field:op:value" format

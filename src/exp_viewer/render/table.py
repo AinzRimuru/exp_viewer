@@ -112,9 +112,12 @@ def build_table_html(
     rows.append('<table class="exp-table">')
 
     # Header
+    has_projects = any(exp.project for exp in experiment_set)
     rows.append("<thead><tr>")
     rows.append("<th class=\"col-id\">ID</th>")
     rows.append("<th class=\"col-name\">Name</th>")
+    if has_projects:
+        rows.append('<th class="col-project">Project</th>')
     if hp_display:
         rows.append(f'<th colspan="{len(hp_display)}" class="group-hp">Hyperparameters</th>')
     if res_display:
@@ -122,6 +125,8 @@ def build_table_html(
     rows.append("</tr><tr>")
     rows.append('<th class="col-id" data-sort="id">ID</th>')
     rows.append('<th class="col-name" data-sort="name">Name</th>')
+    if has_projects:
+        rows.append('<th class="col-project" data-sort="project">Project</th>')
 
     for k in hp_display:
         rows.append(
@@ -139,6 +144,8 @@ def build_table_html(
         rows.append("<tr>")
         rows.append(f'<td class="col-id"><a href="/experiments/{escape(exp.id)}">{escape(exp.id)}</a></td>')
         rows.append(f'<td class="col-name">{escape(exp.name)}</td>')
+        if has_projects:
+            rows.append(f'<td class="col-project">{escape(exp.project)}</td>')
         for k in hp_display:
             fv = exp.hyperparameters.get(k)
             rows.append(f"<td>{_render_cell(fv)}</td>")

@@ -64,3 +64,5 @@ table.exp-table tbody tr:hover { background: #f1f3f5; }
 .column-picker-actions button:hover { background: #dee2e6; }
 .column-picker-groups { display: flex; gap: 2rem; margin-bottom: 0.75rem; }
 .column-picker-groups div label { display: block; font-size: 0.82rem; padding: 0.1rem 0; }
+.col-project { color: #7c3aed; font-weight: 500; }
+.project-badge { display: inline-block; background: #ede9fe; color: #7c3aed; padding: 0.1rem 0.5rem; border-radius: 3px; font-size: 0.8rem; font-weight: 600; }

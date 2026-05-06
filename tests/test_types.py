@@ -141,9 +141,28 @@ class TestExperimentSet:
         es = self._make_set()
         df = es.to_dataframe()
         assert "id" in df
+        assert "project" in df
         assert "hp:lr" in df
         assert "res:acc" in df
         assert len(df["id"]) == 2
+
+    def test_experiment_project_field(self):
+        exp = Experiment(
+            id="p1",
+            name="P1",
+            project="my_project",
+            hyperparameters={"lr": FieldValue(0.01, FieldType.NUMERIC)},
+            results={"acc": FieldValue(0.9, FieldType.PERCENTAGE)},
+        )
+        assert exp.project == "my_project"
+
+    def test_experiment_project_default_empty(self):
+        exp = Experiment(
+            id="x", name="X",
+            hyperparameters={"lr": FieldValue(0.01, FieldType.NUMERIC)},
+            results={"acc": FieldValue(0.9, FieldType.PERCENTAGE)},
+        )
+        assert exp.project == ""
 
     def test_len(self):
         es = self._make_set()

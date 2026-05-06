@@ -181,6 +181,7 @@ def normalize_experiment(
     type_overrides: dict[str, str] | None = None,
     all_hp_keys: list[str] | None = None,
     all_res_keys: list[str] | None = None,
+    project: str = "",
 ) -> Experiment:
     """Normalize a raw experiment dict into an Experiment.
 
@@ -210,4 +211,5 @@ def normalize_experiment(
         ),
         created_at=created_at,
         tags=list(tags),
+        project=project,
     )

@@ -104,6 +104,7 @@ class Experiment:
     results: dict[str, FieldValue]
     created_at: str = ""
     tags: list[str] = field(default_factory=list)
+    project: str = ""
 
     def get_field(self, key: str) -> FieldValue | None:
         """Look up a field by key, checking hyperparameters then results."""
@@ -182,6 +183,7 @@ class ExperimentSet:
         columns: dict[str, list[Any]] = {
             "id": [],
             "name": [],
+            "project": [],
             "tags": [],
             "created_at": [],
         }
@@ -193,6 +195,7 @@ class ExperimentSet:
         for exp in self.experiments:
             columns["id"].append(exp.id)
             columns["name"].append(exp.name)
+            columns["project"].append(exp.project)
             columns["tags"].append(exp.tags)
             columns["created_at"].append(exp.created_at)
             for k in hp_keys:

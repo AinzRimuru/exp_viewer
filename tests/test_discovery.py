@@ -127,3 +127,24 @@ class TestScanDirectory:
         import pytest
         with pytest.raises(ValueError, match="Not a directory"):
             scan_directory(Path("/nonexistent"))
+
+    def test_scan_with_project(self, tmp_path):
+        """scan_directory assigns project label to experiments."""
+        (tmp_path / "exp_a").mkdir()
+        (tmp_path / "exp_a" / "config.json").write_text('{"lr": 0.01}')
+        (tmp_path / "exp_a" / "results.json").write_text('{"loss": 0.5}')
+
+        experiments = scan_directory(tmp_path, project="custom_project")
+        assert len(experiments) == 1
+        assert experiments[0].project == "custom_project"
+
+    def test_scan_project_defaults_to_dirname(self, tmp_path):
+        """scan_directory defaults project to root directory name."""
+        root = tmp_path / "my_experiments"
+        root.mkdir()
+        (root / "exp_a").mkdir()
+        (root / "exp_a" / "config.json").write_text('{"lr": 0.01}')
+        (root / "exp_a" / "results.json").write_text('{"loss": 0.5}')
+
+        experiments = scan_directory(root)
+        assert experiments[0].project == "my_experiments"

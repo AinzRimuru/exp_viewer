@@ -51,13 +51,14 @@ class Database:
 
     def save(self, experiment: Experiment, *, directory: str | None = None) -> None:
         """Save or update an experiment."""
+        project = experiment.project or directory
         self._conn.execute(
             """INSERT OR REPLACE INTO experiments (id, name, directory, created_at, tags)
                VALUES (?, ?, ?, ?, ?)""",
             (
                 experiment.id,
                 experiment.name,
-                directory,
+                project,
                 experiment.created_at,
                 orjson.dumps(experiment.tags).decode(),
             ),
@@ -116,6 +117,7 @@ class Database:
             results=res,
             created_at=created_at or "",
             tags=tags,
+            project=directory or "",
         )
 
     def _load_fields(self, table: str, exp_id: str) -> dict[str, FieldValue]:

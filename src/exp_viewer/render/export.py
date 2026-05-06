@@ -91,6 +91,16 @@ def _build_default_charts(exp_set: ExperimentSet) -> list[tuple[str, go.Figure]]
             )
         )
 
+    # Multi-project: add project comparison chart
+    projects = {exp.project for exp in exp_set if exp.project}
+    if len(projects) > 1 and res_keys:
+        charts.append(
+            (
+                f"{res_keys[0]} by Project",
+                box_plot(exp_set, y_field=res_keys[0], group_field="project"),
+            )
+        )
+
     return charts
 
 

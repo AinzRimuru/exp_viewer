@@ -1,6 +1,6 @@
 # exp_viewer
 
-实验数据可视化工具包。用 JSON 文件记录超参数和实验结果，通过命令行一键生成图表、导出报告或启动交互式仪表盘。
+实验数据可视化工具包。用 JSON 文件记录超参数和实验结果，通过命令行一键生成图表、导出报告或启动交互式仪表盘。支持多目录加载、跨项目横向对比、14 种图表类型和列可见性控制。
 
 ## 目录
 
@@ -9,6 +9,7 @@
 - [字段类型系统](#字段类型系统)
 - [类型配置文件 (fields.json)](#类型配置文件-fieldsjson)
 - [CLI 命令参考](#cli-命令参考)
+- [多目录与项目对比](#多目录与项目对比)
 - [交互式服务端](#交互式服务端)
 - [REST API 参考](#rest-api-参考)
 - [Python API 参考](#python-api-参考)
@@ -86,7 +87,7 @@ exp_viewer 通过扫描目录来发现实验数据。基本结构如下：
 
 ```
 my_experiments/                  ← 实验根目录（传给 CLI 的 path 参数）
-├── fields.json                  ← [可选] 字段类型配置
+├── fields.json                  ← [可选] 字段类型配置 & 列可见性
 ├── run_001/                     ← 一个实验（子目录）
 │   ├── config.json              ← 超参数（必需，与 results.json 至少存在一个）
 │   ├── results.json             ← 实验结果（必需，与 config.json 至少存在一个）
@@ -220,7 +221,7 @@ BOOLEAN ⊂ NUMERIC ⊂ PERCENTAGE ⊂ STRING
 
 ## 类型配置文件 (fields.json)
 
-放在实验根目录下，用于显式声明字段类型。**只需声明需要覆盖的字段，其余字段走自动推断。**
+放在实验根目录下，用于显式声明字段类型和列可见性。**只需声明需要覆盖的字段，其余字段走自动推断。**
 
 ### 基本格式
 
@@ -256,11 +257,26 @@ BOOLEAN ⊂ NUMERIC ⊂ PERCENTAGE ⊂ STRING
 }
 ```
 
+### 列可见性控制
+
+除类型声明外，`fields.json` 还支持控制字段在表格中的默认可见性。使用对象格式：
+
+```json
+{
+    "dropout_rate": {"type": "percentage", "visible": false},
+    "internal_flag": {"visible": false}
+}
+```
+
+- `"visible": false` — 该字段在表格列选择器中默认不勾选，但仍可手动启用
+- `"visible": true`（默认）— 该字段在表格中默认显示
+
 ### 使用场景
 
 - 字段名不含百分比关键词，但实际是百分比（如 `"dropout_rate": "percentage"`）
 - 跨实验值类型不一致，需要强制指定（如 `"lr": "string"` 强制把 `0.01` 当字符串处理）
 - 名称推断结果不符合预期时手动修正
+- 隐藏不常用的中间字段（如 `"debug_info": {"visible": false}`）
 
 ### 增量覆盖
 
@@ -328,17 +344,23 @@ exp-viewer scan <path> [-o output.db]
 
 ### exp-viewer serve
 
-启动交互式 Web 仪表盘。
+启动交互式 Web 仪表盘。支持多目录加载以实现跨项目对比。
 
 ```bash
+# 单目录
 exp-viewer serve <path> [--host HOST] [--port PORT]
+
+# 多目录（跨项目对比）
+exp-viewer serve <path1> <path2> ... [--labels label1,label2,...] [--host HOST] [--port PORT]
 ```
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `path` | — | 实验根目录路径或 `.db` 数据库文件路径 |
+| `paths` | — | 一个或多个实验根目录路径或 `.db` 数据库文件路径 |
+| `--labels` | 各目录 basename | 逗号分隔的项目标签，一一对应 paths |
 | `--host` | `127.0.0.1` | 绑定地址 |
 | `--port` | `8050` | 绑定端口 |
+| `--db` | 内存数据库 | SQLite 数据库路径 |
 
 启动后浏览器访问 `http://<host>:<port>` 即可。按 `Ctrl+C` 停止。
 
@@ -360,6 +382,48 @@ exp-viewer export <path> [-o output.html] [--title TITLE]
 
 ---
 
+## 多目录与项目对比
+
+exp_viewer 支持同时加载多个实验目录，为不同项目打上标签，实现跨项目横向对比。
+
+### 基本用法
+
+```bash
+# 加载两个实验目录，自动使用目录名作为项目标签
+exp-viewer serve project_a/ project_b/
+
+# 自定义项目标签
+exp-viewer serve project_a/ project_b/ --labels CNN,Transformer
+```
+
+### 项目标签规则
+
+- 未指定 `--labels` 时，默认使用目录的 basename 作为项目名
+- 每个实验携带 `project` 字段，贯穿整个管线（表格、图表、API、导出）
+- 多项目时，表格自动显示 Project 列，图表支持按 project 着色/分组
+
+### UI 中的项目功能
+
+- **Project 筛选下拉框** — 只显示特定项目的实验
+- **表格 Project 列** — 显示每个实验所属项目（仅多项目时出现）
+- **图表按 project 着色** — 在 Color 下拉框中选择 `project`
+- **自动项目对比图** — 导出 HTML 时，多项目数据自动生成按项目分组的箱线图
+
+### 向后兼容
+
+单目录模式完全向后兼容：
+
+```bash
+exp-viewer serve my_experiments/   # 单目录，行为不变
+exp-viewer serve experiments.db    # 单数据库文件，行为不变
+```
+
+### 实验详情页
+
+在表格中点击实验 ID 链接，跳转到详情页，显示项目徽章（如果有项目标签）。
+
+---
+
 ## 交互式服务端
 
 运行 `exp-viewer serve` 后，浏览器访问的仪表盘提供以下功能：
@@ -368,24 +432,43 @@ exp-viewer export <path> [-o output.html] [--title TITLE]
 
 - 显示所有实验的超参数和结果
 - 列头分为 **Hyperparameters** 和 **Results** 两组，带不同背景色
+- 多项目时自动显示 **Project** 列
 - 点击 **Sort by** 下拉框选择排序字段，支持升序/降序
 - **Filter** 输入框支持按字段筛选，格式为 `字段名:操作符:值`
+- **Columns** 按钮打开列选择器，可控制显示哪些列（支持全选/全不选/按组切换）
+- 多项目时显示 **Project** 筛选下拉框
+
+### 列可见性控制
+
+点击 **Columns** 按钮打开列选择面板：
+
+- 复选框控制每列的显示/隐藏
+- **All** / **None** 按钮快速全选/全不选
+- **Toggle HP** / **Toggle Results** 按钮按组切换
+- 列的默认选中状态可通过 `fields.json` 的 `visible` 属性配置
 
 ### 图表视图
 
-- 切换到 **Chart** 标签页
-- 选择图表类型和 X/Y 轴字段
-- 可选 Color 维度
+切换到 **Chart** 标签页，选择图表类型和轴字段。支持 14 种图表：
 
-支持的图表类型：
+| 图表 | 类型标识 | 用途 | 参数 |
+|------|---------|------|------|
+| **Bar** | `bar` | 比较不同实验的同一指标 | X, Y, Color, Mode(grouped/stacked) |
+| **Line** | `line` | 多指标趋势 | X, Y(逗号分隔多个) |
+| **Scatter** | `scatter` | 两个指标的相关性 | X, Y, Color, Size |
+| **Parallel Coordinates** | `parallel_coordinates` | 多维超参数对比 | Dimensions, Color |
+| **Heatmap** | `heatmap` | 参数-指标矩阵 | X, Y, Color(值) |
+| **Box** | `box` | 指标分布与离群值 | Group, Y, Color |
+| **Violin** | `violin` | 指标分布密度 | Group, Y, Color |
+| **3D Scatter** | `scatter_3d` | 三维指标关系 | X, Y, Z, Color, Size |
+| **Pie** | `pie` | 指标占比 | Labels, Values |
+| **Histogram** | `histogram` | 指标值分布 | X, Color, Mode, Bins |
+| **Contour** | `contour` | 二维等高线 | X, Y, Color(值) |
+| **Radar** | `radar` | 多维雷达图 | Dimensions, Labels |
+| **Area** | `area` | 多指标面积图 | X, Y(逗号分隔多个) |
+| **Funnel** | `funnel` | 漏斗图 | Labels, Values |
 
-| 图表 | 用途 | 示例 |
-|------|------|------|
-| **Bar** | 比较不同实验的同一指标 | X=id, Y=accuracy |
-| **Line** | 多指标趋势 | X=id, Y=loss,accuracy |
-| **Scatter** | 两个指标的相关性 | X=learning_rate, Y=accuracy |
-| **Parallel Coordinates** | 多维超参数对比 | dimensions=learning_rate,batch_size,accuracy |
-| **Heatmap** | 参数-指标矩阵 | X=optimizer, Y=use_augmentation, size=accuracy |
+多项目时，所有图表的 Color 下拉框均包含 `project` 选项，可按项目着色。
 
 ### 筛选语法
 
@@ -413,10 +496,6 @@ accuracy:gt:0.9
 
 点击页面头部的 **Export HTML** 链接，下载当前数据的静态 HTML 报告。
 
-### 实验详情
-
-在表格中点击实验 ID 链接，跳转到该实验的详情页面，展示所有超参数和结果。
-
 ---
 
 ## REST API 参考
@@ -432,6 +511,7 @@ accuracy:gt:0.9
     {
         "id": "run_001",
         "name": "run_001",
+        "project": "my_experiments",
         "created_at": "2026-04-27T10:00:00+00:00",
         "tags": [],
         "hyperparameters": {
@@ -459,9 +539,10 @@ accuracy:gt:0.9
     "hyperparameters": ["learning_rate", "batch_size", "optimizer"],
     "results": ["accuracy", "loss", "f1_score"],
     "fields": {
-        "learning_rate": {"type": "numeric", "category": "hyperparameter"},
-        "accuracy": {"type": "percentage", "category": "result"}
-    }
+        "learning_rate": {"type": "numeric", "category": "hyperparameter", "visible": true},
+        "accuracy": {"type": "percentage", "category": "result", "visible": true}
+    },
+    "projects": ["project_a", "project_b"]
 }
 ```
 
@@ -474,19 +555,23 @@ accuracy:gt:0.9
 | `sort_by` | `accuracy` | 排序字段 |
 | `sort_desc` | `true` | 是否降序 |
 | `columns` | `learning_rate,accuracy,loss` | 只显示指定列 |
-| `filter_{field}` | `filter_accuracy=gt:0.9` | 筛选 |
+| `project` | `project_a` | 按项目筛选 |
+| `filter_{field}` | `filter_accuracy=gt:0.9` | 按字段筛选 |
 
 ### GET /api/chart/{type}
 
-返回 Plotly JSON 图表数据。`type` 可选：`bar`、`line`、`scatter`、`parallel_coordinates`、`heatmap`。
+返回 Plotly JSON 图表数据。`type` 可选：`bar`、`line`、`scatter`、`parallel_coordinates`、`heatmap`、`box`、`violin`、`scatter_3d`、`pie`、`histogram`、`contour`、`radar`、`area`、`funnel`。
 
 | 参数 | 适用图表 | 说明 |
 |------|---------|------|
-| `x` | 全部 | X 轴字段名 |
-| `y` | bar, line, scatter, heatmap | Y 轴字段名（line 支持逗号分隔多个） |
-| `color` | scatter, parallel_coordinates | 颜色维度字段 |
-| `size` | scatter | 气泡大小字段；heatmap 中为值字段 |
-| `dimensions` | parallel_coordinates | 逗号分隔的维度字段列表 |
+| `x` | bar, line, scatter, heatmap, scatter_3d, box, violin, pie, histogram, contour, area, funnel | X 轴 / Labels 字段 |
+| `y` | bar, line, scatter, heatmap, scatter_3d, box, violin, pie, area | Y 轴 / Values 字段（line/area 支持逗号分隔多个） |
+| `z` | scatter_3d | Z 轴字段 |
+| `color` | scatter, scatter_3d, parallel_coordinates, box, violin, histogram | 颜色维度字段 |
+| `size` | scatter, scatter_3d | 气泡大小字段；heatmap/contour 中为值字段 |
+| `dimensions` | parallel_coordinates, radar | 逗号分隔的维度字段列表 |
+| `group_mode` | bar, histogram | `grouped`（默认）/ `stacked` / `overlay` |
+| `nbins` | histogram | 直方图分箱数（默认 20） |
 | `title` | 全部 | 图表标题 |
 
 ### POST /api/scan
@@ -528,6 +613,19 @@ for exp in experiments:
     print(f"{exp.id}: accuracy = {exp.results['accuracy'].display_value}")
 ```
 
+### 带项目标签扫描
+
+```python
+# 自定义项目标签
+experiments = scan_directory(Path("my_experiments/"), project="cnn_sweep")
+for exp in experiments:
+    print(f"{exp.project}/{exp.id}")
+
+# 默认使用目录名
+experiments = scan_directory(Path("cnn_sweep/"))
+# exp.project == "cnn_sweep"
+```
+
 ### 加载单个实验
 
 ```python
@@ -559,6 +657,7 @@ print(exp_set.all_result_keys)
 # 转换为列式字典（可用于自定义绘图）
 df = exp_set.to_dataframe()
 print(df["res:accuracy"])  # [0.95, 0.88, 0.97]
+print(df["project"])       # ["cnn_sweep", "cnn_sweep", ...]
 ```
 
 ### 字段值操作
@@ -588,7 +687,10 @@ export_html(
     chart_configs=[
         {"type": "scatter", "x": "learning_rate", "y": "accuracy", "color": "optimizer"},
         {"type": "bar", "x": "id", "y": "loss"},
+        {"type": "box", "y": "accuracy", "x": "optimizer"},
         {"type": "parallel_coordinates", "dimensions": ["learning_rate", "batch_size", "accuracy"]},
+        {"type": "violin", "y": "accuracy", "x": "optimizer"},
+        {"type": "heatmap", "x": "optimizer", "y": "batch_size", "size": "accuracy"},
     ],
 )
 ```
@@ -601,7 +703,7 @@ from exp_viewer import Database
 # 创建数据库
 db = Database("experiments.db")
 
-# 保存实验
+# 保存实验（project 字段自动持久化）
 for exp in experiments:
     db.save(exp)
 
@@ -666,6 +768,7 @@ config = load_fields_config(Path("my_experiments/"))
 1. 有结果指标时 → 第一个结果的柱状图（按实验 ID）
 2. 有两个以上结果指标时 → 前两个指标的散点图
 3. 同时有超参数和结果时 → 平行坐标图（最多 6 个超参数 + 3 个结果）
+4. 有多个项目时 → 按项目分组的箱线图
 
 ### 自定义图表配置
 
@@ -682,6 +785,17 @@ export_html(
             "y": "accuracy",
             "color": "optimizer",
             "title": "Accuracy vs Learning Rate"
+        },
+        {
+            "type": "box",
+            "y": "accuracy",
+            "x": "optimizer",
+            "title": "Accuracy Distribution"
+        },
+        {
+            "type": "violin",
+            "y": "loss",
+            "x": "optimizer",
         },
         {
             "type": "heatmap",
@@ -705,7 +819,7 @@ export_html(
 CREATE TABLE experiments (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    directory TEXT,
+    directory TEXT,     -- 存储项目标签（project label）
     created_at TEXT NOT NULL DEFAULT '',
     tags TEXT NOT NULL DEFAULT '[]'
 );
@@ -921,7 +1035,12 @@ Scanned 3 experiments into ml_experiments.db
 ### 5. 启动交互式服务
 
 ```bash
+# 单目录
 $ exp-viewer serve ml_experiments/ --port 8050
+Starting server at http://127.0.0.1:8050
+
+# 多目录（跨项目对比）
+$ exp-viewer serve ml_experiments/ transformer_experiments/ --labels CNN,Transformer
 Starting server at http://127.0.0.1:8050
 ```
 
@@ -935,20 +1054,32 @@ Starting server at http://127.0.0.1:8050
 ### 6. 通过 API 获取数据
 
 ```bash
-# 获取所有实验
+# 获取所有实验（含 project 字段）
 curl http://127.0.0.1:8050/api/experiments
 
-# 获取字段信息
+# 获取字段信息（含 visible 和 projects）
 curl http://127.0.0.1:8050/api/fields
 
 # 获取排序后的表格
 curl "http://127.0.0.1:8050/api/table?sort_by=accuracy&sort_desc=true"
 
+# 按项目筛选
+curl "http://127.0.0.1:8050/api/table?project=CNN"
+
 # 获取柱状图
 curl "http://127.0.0.1:8050/api/chart/bar?x=id&y=accuracy"
 
-# 获取散点图
+# 获取散点图（按优化器着色）
 curl "http://127.0.0.1:8050/api/chart/scatter?x=learning_rate&y=accuracy&color=optimizer"
+
+# 获取箱线图
+curl "http://127.0.0.1:8050/api/chart/box?y=accuracy&x=optimizer"
+
+# 获取小提琴图
+curl "http://127.0.0.1:8050/api/chart/violin?y=accuracy&x=optimizer"
+
+# 获取散点图（按项目着色）
+curl "http://127.0.0.1:8050/api/chart/scatter?x=learning_rate&y=accuracy&color=project"
 
 # 筛选 accuracy > 0.85 的实验
 curl "http://127.0.0.1:8050/api/table?filter_accuracy=gt:0.85"
@@ -960,8 +1091,8 @@ curl "http://127.0.0.1:8050/api/table?filter_accuracy=gt:0.85"
 from exp_viewer import scan_directory, export_html, ExperimentSet
 from pathlib import Path
 
-# 加载数据
-experiments = scan_directory(Path("ml_experiments/"))
+# 加载数据（带项目标签）
+experiments = scan_directory(Path("ml_experiments/"), project="cnn_sweep")
 exp_set = ExperimentSet(experiments)
 
 # 筛选 accuracy > 90% 的实验
@@ -979,6 +1110,17 @@ export_html(
     "low_loss_report.html",
     title="Experiments Sorted by Loss",
 )
+
+# 多项目对比
+from exp_viewer.server.app import create_app
+import uvicorn
+
+roots = [
+    (Path("cnn_experiments/"), "CNN"),
+    (Path("transformer_experiments/"), "Transformer"),
+]
+app = create_app(experiments_roots=roots)
+uvicorn.run(app, host="127.0.0.1", port=8050)
 ```
 
 ---

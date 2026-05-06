@@ -18,7 +18,7 @@ def _resolve_field(
     Keys prefixed with 'hp:' force hyperparameter lookup, 'res:' force result lookup.
     Plain keys try hyperparameters first, then results.
     """
-    _META_KEYS = {"id", "name", "created_at"}
+    _META_KEYS = {"id", "name", "created_at", "project"}
 
     source: str | None = None
     clean_key = key
