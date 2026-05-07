@@ -115,20 +115,15 @@ def build_table_html(
     has_projects = any(exp.project for exp in experiment_set)
     rows.append("<thead><tr>")
     rows.append('<th class="col-select" rowspan="2"><input type="checkbox" id="select-all" title="Select all"></th>')
-    rows.append("<th class=\"col-id\">ID</th>")
-    rows.append("<th class=\"col-name\">Name</th>")
+    rows.append('<th class="col-id" rowspan="2">ID</th>')
+    rows.append('<th class="col-name" rowspan="2">Name</th>')
     if has_projects:
-        rows.append('<th class="col-project">Project</th>')
+        rows.append('<th class="col-project" rowspan="2">Project</th>')
     if hp_display:
         rows.append(f'<th colspan="{len(hp_display)}" class="group-hp">Hyperparameters</th>')
     if res_display:
         rows.append(f'<th colspan="{len(res_display)}" class="group-res">Results</th>')
     rows.append("</tr><tr>")
-    rows.append('<th class="col-select"></th>')
-    rows.append('<th class="col-id" data-sort="id">ID</th>')
-    rows.append('<th class="col-name" data-sort="name">Name</th>')
-    if has_projects:
-        rows.append('<th class="col-project" data-sort="project">Project</th>')
 
     for k in hp_display:
         rows.append(
