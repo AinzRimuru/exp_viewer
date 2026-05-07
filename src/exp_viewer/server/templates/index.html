@@ -318,7 +318,7 @@ function loadChart() {
     if (['bar','scatter','line','heatmap','scatter_3d','box','violin','pie','area'].includes(chartType)) {
         params.set('y', y);
     }
-    if (['scatter','scatter_3d','parallel_coordinates','box','violin','histogram'].includes(chartType) && color) {
+    if (['bar','scatter','scatter_3d','parallel_coordinates','box','violin','histogram'].includes(chartType) && color) {
         params.set('color', color);
     }
 
