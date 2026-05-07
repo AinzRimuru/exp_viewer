@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "exp-viewer"
-version = "0.6.3"
+version = "0.6.4"
 description = "Experiment data visualization toolkit"
 requires-python = ">=3.11"
 dependencies = [
